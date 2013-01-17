@@ -1,0 +1,8 @@
+/aclocal.m4
+/auto/
+/autom4te.cache/
+/configure
+/m4/
+/src/config.h.in
+/version.m4
+Makefile.in
