@@ -101,6 +101,13 @@ struct redef_func
   v1, v2, v3, v4, v5, v6, v7
 
 
+#define REDEF(ret, func, ...)                   \
+  IMPORT(func);                                 \
+                                                \
+  ret                                           \
+  func(PROTO(__VA_ARGS__))
+
+
 static void *dspl_libgl = NULL;
 static Display *accl_dpy = NULL;
 
