@@ -119,6 +119,25 @@ struct redef_func
 #define DSPL(func, ...)  UPCALL(dspl, func, ##__VA_ARGS__)
 
 
+#define UNUSED(v)                               \
+  do                                            \
+    (void) (v);                                 \
+  while (0)
+
+#define PARENS(a)  (a)
+#define COMMA(...)  , ##__VA_ARGS__
+
+#define ACCL_DPY(ret, func, display, dpy, ...)                  \
+  REDEF(ret, func, display, dpy, ##__VA_ARGS__)                 \
+  {                                                             \
+    UNUSED(dpy);                                                \
+    return __builtin_choose_expr(                               \
+      __builtin_types_compatible_p(display, Display *),         \
+      ACCL(func, accl_dpy COMMA PARENS(ARGS(__VA_ARGS__))),     \
+      (void) 0);                                                \
+  }
+
+
 static void *dspl_libgl = NULL;
 static Display *accl_dpy = NULL;
 
