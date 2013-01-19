@@ -63,6 +63,44 @@ struct redef_func
   }
 
 
+#define ARG_COUNT_SHIFT(t7, v7, t6, v6, t5, v5,         \
+                        t4, v4, t3, v3, t2, v2, t1, v1, \
+                        t0, n, ...)  n
+#define ARG_COUNT(...)                                          \
+  ARG_COUNT_SHIFT(__VA_ARGS__,                                  \
+                  ?, 7, ?, 6, ?, 5, ?, 4, ?, 3, ?, 2, ?, 1, 0)
+
+#define CONCAT(a, b)  a##b
+#define EVAL_CONCAT(a, b)  CONCAT(a, b)
+
+#define PROTO(...)  EVAL_CONCAT(PROTO, ARG_COUNT(__VA_ARGS__))(__VA_ARGS__)
+#define ARGS(...)  EVAL_CONCAT(ARGS, ARG_COUNT(__VA_ARGS__))(__VA_ARGS__)
+
+#define PROTO0(void)  void
+#define PROTO1(t1, v1)  t1 v1
+#define PROTO2(t1, v1, t2, v2)  t1 v1, t2 v2
+#define PROTO3(t1, v1, t2, v2, t3, v3)  t1 v1, t2 v2, t3 v3
+#define PROTO4(t1, v1, t2, v2, t3, v3, t4, v4)  t1 v1, t2 v2, t3 v3, t4 v4
+#define PROTO5(t1, v1, t2, v2, t3, v3, t4, v4, t5, v5)  \
+  t1 v1, t2 v2, t3 v3, t4 v4, t5 v5
+#define PROTO6(t1, v1, t2, v2, t3, v3, t4, v4, t5, v5, t6, v6)     \
+  t1 v1, t2 v2, t3 v3, t4 v4, t5 v5, t6 v6
+#define PROTO7(t1, v1, t2, v2, t3, v3, t4, v4, t5, v5, t6, v6, t7, v7)  \
+  t1 v1, t2 v2, t3 v3, t4 v4, t5 v5, t6 v6, t7 v7
+
+#define ARGS0(void)
+#define ARGS1(t1, v1)  v1
+#define ARGS2(t1, v1, t2, v2)  v1, v2
+#define ARGS3(t1, v1, t2, v2, t3, v3)  v1, v2, v3
+#define ARGS4(t1, v1, t2, v2, t3, v3, t4, v4)  v1, v2, v3, v4
+#define ARGS5(t1, v1, t2, v2, t3, v3, t4, v4, t5, v5)   \
+  v1, v2, v3, v4, v5
+#define ARGS6(t1, v1, t2, v2, t3, v3, t4, v4, t5, v5, t6, v6)   \
+  v1, v2, v3, v4, v5, v6
+#define ARGS7(t1, v1, t2, v2, t3, v3, t4, v4, t5, v5, t6, v6, t7, v7)   \
+  v1, v2, v3, v4, v5, v6, v7
+
+
 static void *dspl_libgl = NULL;
 static Display *accl_dpy = NULL;
 
