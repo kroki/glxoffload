@@ -21,6 +21,7 @@
 #include "config.h"
 #endif
 #include <kroki/error.h>
+#include <X11/Xlib.h>
 #include <dlfcn.h>
 #include <stdlib.h>
 
@@ -32,6 +33,7 @@
 
 
 static void *dspl_libgl = NULL;
+static Display *accl_dpy = NULL;
 
 
 static __attribute__((__constructor__))
@@ -45,6 +47,9 @@ init(void)
   dspl_libgl = CHECK(dlopen(getenv("KROKI_GLXOFFLOAD_DSPL_LIBGL"),
                             RTLD_LAZY | RTLD_LOCAL | RTLD_DEEPBIND),
                      == NULL, die, "%s", dlerror());
+
+  accl_dpy = MEM(XOpenDisplay(getenv("KROKI_GLXOFFLOAD_DPY")),
+                 " for %s", getenv("KROKI_GLXOFFLOAD_DPY"));
 }
 
 
@@ -52,5 +57,7 @@ static __attribute__((__destructor__))
 void
 fini(void)
 {
+  XCloseDisplay(accl_dpy);
+
   dlclose(dspl_libgl);
 }
