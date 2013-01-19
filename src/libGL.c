@@ -23,6 +23,9 @@
 #include <kroki/likely.h>
 #include <kroki/error.h>
 #include <X11/Xlib.h>
+#define GL_GLEXT_PROTOTYPES
+#include <GL/glx.h>
+#include <GL/glxext.h>
 #include <dlfcn.h>
 #include <stdlib.h>
 #include <string.h>
@@ -176,6 +179,26 @@ _kroki_glxoffload_get_proc_address(const char *name)
     }
 
   return NULL;
+}
+
+
+REDEF(fptr,
+glXGetProcAddress, const GLubyte *, procName)
+{
+  fptr res = _kroki_glxoffload_get_proc_address((const char *) procName);
+  if (! res)
+    res = ACCL(glXGetProcAddress, procName);
+  return res;
+}
+
+
+REDEF(fptr,
+glXGetProcAddressARB, const GLubyte *, procName)
+{
+  fptr res = _kroki_glxoffload_get_proc_address((const char *) procName);
+  if (! res)
+    res = ACCL(glXGetProcAddressARB, procName);
+  return res;
 }
 
 

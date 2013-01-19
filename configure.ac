@@ -56,6 +56,9 @@ AC_CHECK_HEADER([kroki/error.h], [],
                 [AC_MSG_ERROR([kroki/error.h is required])])
 AC_CHECK_HEADER([link.h], [], [AC_MSG_ERROR([link.h is required])])
 AC_CHECK_HEADER([X11/Xlib.h], [], [AC_MSG_ERROR([X11/Xlib.h is required])])
+AC_CHECK_HEADER([GL/glx.h], [], [AC_MSG_ERROR([GL/glx.h is required])])
+AC_CHECK_HEADER([GL/glxext.h], [], [AC_MSG_ERROR([GL/glxext.h is required])],
+                [#include <GL/glx.h>])
 
 save_LIBS=$LIBS
 
