@@ -138,6 +138,16 @@ struct redef_func
   }
 
 
+#define DSPL_DPY(ret, func, ...)                \
+  REDEF(ret, func, __VA_ARGS__)                 \
+  {                                             \
+    return __builtin_choose_expr(               \
+      1,                                        \
+      DSPL(func, ARGS(__VA_ARGS__)),            \
+      (void) 0);                                \
+  }
+
+
 static void *dspl_libgl = NULL;
 static Display *accl_dpy = NULL;
 
