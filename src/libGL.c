@@ -32,13 +32,44 @@
 #endif
 
 
+typedef void (*fptr)();
+
+struct redef_func
+{
+  fptr accl_fp;
+  fptr dspl_fp;
+  fptr addr_fp;
+  const char *const name;
+};
+
+
+#define IMPORT(func)                                            \
+  static __attribute__((__section__("_kroki_glxoffload")))      \
+  struct redef_func redef_##func = {                            \
+    .name = #func,                                              \
+  };                                                            \
+                                                                \
+  static __attribute__((__weakref__(#func)))                    \
+  void                                                          \
+  weakref_##func();                                             \
+                                                                \
+  static __attribute__((__constructor__(1001)))                 \
+  void                                                          \
+  init1_##func(void)                                            \
+  {                                                             \
+    redef_##func.accl_fp = dlsym(RTLD_NEXT, USCORE #func);      \
+    redef_##func.dspl_fp = dlsym(dspl_libgl, USCORE #func);     \
+    redef_##func.addr_fp = weakref_##func;                      \
+  }
+
+
 static void *dspl_libgl = NULL;
 static Display *accl_dpy = NULL;
 
 
-static __attribute__((__constructor__))
+static __attribute__((__constructor__(1000)))
 void
-init(void)
+init0(void)
 {
   /*
     RTLD_DEEPBIND in dlopen() makes original KROKI_GLXOFFLOAD_LIBGL
