@@ -28,6 +28,7 @@
 #include <GL/glxext.h>
 #include <dlfcn.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 #ifdef NEED_USCORE
@@ -202,6 +203,72 @@ glXGetProcAddressARB, const GLubyte *, procName)
 }
 
 
+static char *vendor = NULL;
+static char *version = NULL;
+
+static
+const char *
+get_client_string(char **pv, int name, const char *via);
+
+
+REDEF(const char *,
+glXGetClientString, Display *, dpy, int, name)
+{
+  UNUSED(dpy);
+
+  switch (name)
+    {
+    case GLX_VENDOR:
+      return get_client_string(&vendor, name, PACKAGE_NAME);
+
+    case GLX_VERSION:
+      return get_client_string(&version, name, PACKAGE_VERSION);
+
+    case GLX_EXTENSIONS:
+      return ACCL(glXGetClientString, accl_dpy, name);
+
+    default:
+      return NULL;
+    }
+}
+
+
+#if (__GNUC__ < 4 || (__GNUC__ == 4 && __GNUC_MINOR__ < 7))
+
+#define __ATOMIC_ACQUIRE
+#define __ATOMIC_RELEASE
+#define __atomic_load_n(pv, mm)  ((volatile __typeof__(*(pv))) *(pv))
+#define __atomic_compare_exchange_n(pv, opv, nv, w, tmm, fmm)   \
+  ({                                                            \
+    __typeof__(*(opv)) _kroki_o = *(opv);                       \
+    *(opv) = __sync_val_compare_and_swap(pv, _kroki_o, nv);     \
+    (*(opv) == _kroki_o);                                       \
+  })
+
+#endif
+
+
+static
+const char *
+get_client_string(char **pv, int name, const char *via)
+{
+  const char *v = __atomic_load_n(pv, __ATOMIC_ACQUIRE);
+  if (unlikely(! v))
+    {
+      char *nv;
+      SYS(asprintf(&nv, "%s (via %s)",
+                   ACCL(glXGetClientString, accl_dpy, name), via));
+      if (__atomic_compare_exchange_n(pv, &v, nv, 0,
+                                      __ATOMIC_RELEASE, __ATOMIC_ACQUIRE))
+        v = nv;
+      else
+        free(nv);
+    }
+
+  return v;
+}
+
+
 static __attribute__((__constructor__(1000)))
 void
 init0(void)
@@ -238,4 +305,7 @@ fini(void)
   XCloseDisplay(accl_dpy);
 
   dlclose(dspl_libgl);
+
+  free(version);
+  free(vendor);
 }
