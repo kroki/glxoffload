@@ -108,6 +108,17 @@ struct redef_func
   func(PROTO(__VA_ARGS__))
 
 
+#define UPCALL(target, func, ...)               \
+  __builtin_choose_expr(                        \
+    1,                                          \
+    ((__typeof__(func(__VA_ARGS__))(*)())       \
+     redef_##func.target##_fp)(__VA_ARGS__),    \
+    (void) 0)
+
+#define ACCL(func, ...)  UPCALL(accl, func, ##__VA_ARGS__)
+#define DSPL(func, ...)  UPCALL(dspl, func, ##__VA_ARGS__)
+
+
 static void *dspl_libgl = NULL;
 static Display *accl_dpy = NULL;
 
