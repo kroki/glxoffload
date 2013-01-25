@@ -8,6 +8,14 @@ pkglib_LTLIBRARIES =				\
 	libGL.la
 
 
+pkglib_LTLIBRARIES +=				\
+	kroki-glxoffload-audit.la
+
+
+kroki_glxoffload_audit_la_LDFLAGS =		\
+	-module
+
+
 nobase_pkglib_LTLIBRARIES =			\
 	stub/libkroki-glxoffload.la
 

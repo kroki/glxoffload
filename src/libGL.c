@@ -20,10 +20,12 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#include <kroki/likely.h>
 #include <kroki/error.h>
 #include <X11/Xlib.h>
 #include <dlfcn.h>
 #include <stdlib.h>
+#include <string.h>
 
 #ifdef NEED_USCORE
 #define USCORE  "_"
@@ -152,6 +154,31 @@ static void *dspl_libgl = NULL;
 static Display *accl_dpy = NULL;
 
 
+/*
+  _kroki_glxoffload_get_proc_address() must be exported
+  (i.e. non-static; see kroki-glxoffload-audit.c).
+*/
+fptr
+_kroki_glxoffload_get_proc_address(const char *name)
+{
+  if (likely(name))
+    {
+      extern __attribute__((__visibility__("hidden")))
+        const struct redef_func __start__kroki_glxoffload,
+                                __stop__kroki_glxoffload;
+
+      for (const struct redef_func *af = &__start__kroki_glxoffload;
+           af != &__stop__kroki_glxoffload; ++af)
+        {
+          if (strcmp(af->name, name) == 0)
+            return af->addr_fp;
+        }
+    }
+
+  return NULL;
+}
+
+
 static __attribute__((__constructor__(1000)))
 void
 init0(void)
@@ -166,6 +193,18 @@ init0(void)
 
   accl_dpy = MEM(XOpenDisplay(getenv("KROKI_GLXOFFLOAD_DPY")),
                  " for %s", getenv("KROKI_GLXOFFLOAD_DPY"));
+}
+
+
+static __attribute__((__constructor__(1002)))
+void
+init2(void)
+{
+  /*
+    Trigger '_kroki_glxoffload_get_proc_address' symbol lookup after
+    initializing redirection table (see kroki-glxoffload-audit.c).
+  */
+  _kroki_glxoffload_get_proc_address(NULL);
 }
 
 

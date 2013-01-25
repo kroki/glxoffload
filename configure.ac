@@ -50,8 +50,11 @@ AC_PROG_CC
 AC_PROG_CC_C99
 
 AC_CHECK_HEADER([dlfcn.h], [], [AC_MSG_ERROR([dlfcn.h is required])])
+AC_CHECK_HEADER([kroki/likely.h], [],
+                [AC_MSG_ERROR([kroki/likely.h is required])])
 AC_CHECK_HEADER([kroki/error.h], [],
                 [AC_MSG_ERROR([kroki/error.h is required])])
+AC_CHECK_HEADER([link.h], [], [AC_MSG_ERROR([link.h is required])])
 AC_CHECK_HEADER([X11/Xlib.h], [], [AC_MSG_ERROR([X11/Xlib.h is required])])
 
 save_LIBS=$LIBS
