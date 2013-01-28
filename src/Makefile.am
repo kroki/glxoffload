@@ -17,4 +17,5 @@ libGL_la_LDFLAGS =				\
 
 
 libGL_la_LIBADD =				\
-	stub/libkroki-glxoffload.la
+	stub/libkroki-glxoffload.la		\
+	$(LIBADD_DLOPEN)

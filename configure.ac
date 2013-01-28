@@ -49,6 +49,21 @@ AC_PROG_MAKE_SET
 AC_PROG_CC
 AC_PROG_CC_C99
 
+AC_CHECK_HEADER([dlfcn.h], [], [AC_MSG_ERROR([dlfcn.h is required])])
+AC_CHECK_HEADER([kroki/error.h], [],
+                [AC_MSG_ERROR([kroki/error.h is required])])
+
+save_LIBS=$LIBS
+
+LIBADD_DLOPEN=
+AC_SEARCH_LIBS([dlopen], [dl], [LIBADD_DLOPEN=$ac_cv_search_dlopen],
+               [AC_MSG_ERROR([libkroki-glxoffload requires dlopen()])])
+AC_SUBST([LIBADD_DLOPEN])
+
+LT_FUNC_DLSYM_USCORE
+
+LIBS=$save_LIBS
+
 AC_SUBST([RPM_VERSION], [`echo VERSION_STRING | sed -e 's/-.*//'`])
 AC_SUBST([RPM_RELEASE], [`echo VERSION_STRING | sed -e 's/[[^-]]*-\?//'`])
 AC_DEFINE([PACKAGE_COPYRIGHT], ["kroki_glxoffload_copyright"],

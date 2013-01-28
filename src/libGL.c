@@ -20,3 +20,37 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#include <kroki/error.h>
+#include <dlfcn.h>
+#include <stdlib.h>
+
+#ifdef NEED_USCORE
+#define USCORE  "_"
+#else
+#define USCORE
+#endif
+
+
+static void *dspl_libgl = NULL;
+
+
+static __attribute__((__constructor__))
+void
+init(void)
+{
+  /*
+    RTLD_DEEPBIND in dlopen() makes original KROKI_GLXOFFLOAD_LIBGL
+    see symbols of its own dependencies rather than our overrides.
+  */
+  dspl_libgl = CHECK(dlopen(getenv("KROKI_GLXOFFLOAD_DSPL_LIBGL"),
+                            RTLD_LAZY | RTLD_LOCAL | RTLD_DEEPBIND),
+                     == NULL, die, "%s", dlerror());
+}
+
+
+static __attribute__((__destructor__))
+void
+fini(void)
+{
+  dlclose(dspl_libgl);
+}
