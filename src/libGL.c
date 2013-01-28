@@ -1077,12 +1077,155 @@ DSPL_DPY(void,
 glXWaitX, void);
 
 
+struct fnt_info_key
+{
+  Display *dpy;
+  Font dspl_font;
+};
+
+
+struct fnt_info
+{
+  struct fnt_info_key key;
+  char *name;
+  Font accl_font;
+  unsigned long use_count;
+};
+
+static pthread_mutex_t fnt_infos_mutex = PTHREAD_MUTEX_INITIALIZER;
+static struct cuckoo_hash fnt_infos;
+
+
+static
+struct fnt_info *
+fnt_info_create(Display *dpy, Font dspl_font, const char *name)
+{
+  struct fnt_info *res = MEM(malloc(sizeof(*res)));
+  memset(&res->key, 0, sizeof(res->key));
+  res->key.dpy = dpy;
+  res->key.dspl_font = dspl_font;
+  res->name = MEM(strdup(name));
+  res->accl_font = None;
+  res->use_count = 1;
+  pthread_mutex_lock(&fnt_infos_mutex);
+  struct cuckoo_hash_item *it =
+    CHECK(cuckoo_hash_insert(&fnt_infos, &res->key, sizeof(res->key), res),
+          == CUCKOO_HASH_FAILED, die, "%m");
+  if (it)
+    {
+      free(res);
+      res = it->value;
+      ++res->use_count;
+    }
+  pthread_mutex_unlock(&fnt_infos_mutex);
+  return res;
+}
+
+
+static
+struct fnt_info *
+fnt_info_lookup(Display *dpy, Font dspl_font)
+{
+  struct fnt_info_key key;
+  memset(&key, 0, sizeof(key));
+  key.dpy = dpy;
+  key.dspl_font = dspl_font;
+  pthread_mutex_lock(&fnt_infos_mutex);
+  struct cuckoo_hash_item *it =
+    cuckoo_hash_lookup(&fnt_infos, &key, sizeof(key));
+  pthread_mutex_unlock(&fnt_infos_mutex);
+  return (it ? it->value : NULL);
+}
+
+
+static
+void
+fnt_info_destroy(Display *dpy, Font dspl_font);
+
+
+REDEF(int,
+XFreeFont, Display *, dpy, XFontStruct *, font_struct)
+{
+  fnt_info_destroy(dpy, font_struct->fid);
+  return DSPL(XFreeFont, dpy, font_struct);
+}
+
+
+REDEF(int,
+XUnloadFont, Display *, dpy, Font, font)
+{
+  fnt_info_destroy(dpy, font);
+  return DSPL(XUnloadFont, dpy, font);
+}
+
+
+static
+void
+fnt_info_destroy(Display *dpy, Font dspl_font)
+{
+  struct fnt_info_key key;
+  memset(&key, 0, sizeof(key));
+  key.dpy = dpy;
+  key.dspl_font = dspl_font;
+  pthread_mutex_lock(&fnt_infos_mutex);
+  struct cuckoo_hash_item *it =
+    cuckoo_hash_lookup(&fnt_infos, &key, sizeof(key));
+  if (it)
+    {
+      struct fnt_info *fi = it->value;
+      if (--fi->use_count == 0)
+        cuckoo_hash_remove(&fnt_infos, it);
+      else
+        it = NULL;
+    }
+  pthread_mutex_unlock(&fnt_infos_mutex);
+  if (it)
+    {
+      struct fnt_info *fi = it->value;
+      if (fi->accl_font)
+        ACCL(XUnloadFont, accl_dpy, fi->accl_font);
+      free(fi);
+    }
+}
+
+
+REDEF(Font,
+XLoadFont, Display *, dpy, const char *, name)
+{
+  Font res = DSPL(XLoadFont, dpy, name);
+  if (res)
+    fnt_info_create(dpy, res, name);
+  return res;
+}
+
+
+REDEF(XFontStruct *,
+XLoadQueryFont, Display *, dpy, const char *, name)
+{
+  XFontStruct *res = DSPL(XLoadQueryFont, dpy, name);
+  if (res)
+    fnt_info_create(dpy, res->fid, name);
+  return res;
+}
+
+
+REDEF(void,
+glXUseXFont, Font, font, int, first, int, count, int, listBase)
+{
+  struct fnt_info *fi = fnt_info_lookup(glXGetCurrentDisplay(), font);
+  if (! fi->accl_font)
+    fi->accl_font = ACCL(XLoadFont, accl_dpy, fi->name);
+  ACCL(glXUseXFont, fi->accl_font, first, count, listBase);
+}
+
+
 static __attribute__((__constructor__(1000)))
 void
 init0(void)
 {
   CHECK(cuckoo_hash_init(&ctx_infos, 2), == false, die, "%m");
   CHECK(cuckoo_hash_init(&drw_infos, 2), == false, die, "%m");
+  CHECK(cuckoo_hash_init(&fnt_infos, 2), == false, die, "%m");
 
   /*
     RTLD_DEEPBIND in dlopen() makes original KROKI_GLXOFFLOAD_LIBGL
@@ -1117,6 +1260,7 @@ fini(void)
 
   dlclose(dspl_libgl);
 
+  cuckoo_hash_destroy(&fnt_infos);
   cuckoo_hash_destroy(&drw_infos);
   cuckoo_hash_destroy(&ctx_infos);
 
