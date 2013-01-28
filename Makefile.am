@@ -16,7 +16,8 @@ bin_SCRIPTS =					\
 
 
 EXTRA_DIST =					\
-	version.sh
+	version.sh				\
+	README.md
 
 
 rpm: dist
