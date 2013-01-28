@@ -84,6 +84,7 @@ AC_CONFIG_FILES([
 Makefile
 src/Makefile
 ])
+AC_CONFIG_FILES([bin/kroki-glxoffload], [chmod a+x bin/kroki-glxoffload])
 AC_CONFIG_FILES([stamp-h], [echo timestamp > stamp-h])
 
 AC_OUTPUT

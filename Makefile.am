@@ -11,6 +11,10 @@ SUBDIRS =					\
         src/
 
 
+bin_SCRIPTS =					\
+	bin/kroki-glxoffload
+
+
 EXTRA_DIST =					\
 	version.sh
 

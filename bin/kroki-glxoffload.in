@@ -1,0 +1,76 @@
+#! /usr/bin/env bash
+#
+# Copyright (C) 2013 Tomash Brechko.  All rights reserved.
+#
+# This file is part of kroki/glxoffload.
+#
+# Kroki/glxoffload is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Kroki/glxoffload is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with kroki/glxoffload.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+set -o errexit -o nounset -o noclobber
+
+
+# Parse options
+
+
+BBSOCK=${KROKI_GLXOFFLOAD_BBSOCK:-/var/run/bumblebee.socket}
+LIBGL=libGL.so.1
+PRELOAD=libpthread.so.0:libglapi.so.0
+
+
+coproc BB { socat - "$BBSOCK"; }
+echo -n "C" >&${BB[1]}
+read -u ${BB[0]} -d $'\0' STATUS
+if [ x"${STATUS:0:3}" != x"Yes" ]; then
+    echo "$STATUS" >&2
+    exit 1
+fi
+echo -ne "Q VirtualDisplay\0" >&${BB[1]}
+read -u ${BB[0]} -d $'\0' DPY
+DPY=${DPY/#Value: /}
+echo -ne "Q LibraryPath\0" >&${BB[1]}
+read -u ${BB[0]} -d $'\0' LPATH
+LPATH=${LPATH/#Value: /}
+
+
+EXE=$(which "$1")
+
+findlib() {
+    local LIBGL_RE=$(echo "$1" | sed -e 's/.*\///; s/\./\\./g')
+    LD_PRELOAD="$1" ldd "$EXE" \
+        | sed -ne 's/^\s*'"$LIBGL_RE"' => \(.\+\) (0x[[:xdigit:]]\+)$/\1/p;
+                   s/^\s*\(.*\/'"$LIBGL_RE"'\) (0x[[:xdigit:]]\+)$/\1/p'
+}
+
+
+DSPL_LIBGL=$(findlib "$LIBGL")
+ACCL_LIBGL=$(LD_LIBRARY_PATH="$LPATH" findlib "$LIBGL")
+
+
+TMPLINKDIR=${TMPDIR:-/tmp}/$(basename "$0").$$
+trap 'rm -rf "$TMPLINKDIR"' EXIT
+mkdir -p "$TMPLINKDIR"
+rm -f "$TMPLINKDIR"/libkroki-glxoffload.so.0
+ln -s "$ACCL_LIBGL" "$TMPLINKDIR"/libkroki-glxoffload.so.0
+
+exec_prefix=$(dirname "$0")/..
+LPATH="@libdir@/@PACKAGE@/":$TMPLINKDIR:$LPATH
+
+
+#LD_AUDIT=kroki-glxoffload-audit.so:${LD_AUDIT:-} \
+KROKI_GLXOFFLOAD_DPY="$DPY" \
+KROKI_GLXOFFLOAD_DSPL_LIBGL="$DSPL_LIBGL" \
+LD_LIBRARY_PATH="$LPATH:${LD_LIBRARY_PATH:-}" \
+LD_PRELOAD="$PRELOAD:${LD_PRELOAD:-}" \
+"$@"
