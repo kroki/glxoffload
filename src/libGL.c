@@ -433,6 +433,650 @@ get_client_string(char **pv, int name, const char *via)
 }
 
 
+ACCL_DPY(int,
+glXGetFBConfigAttrib, Display *, dpy, GLXFBConfig, config,
+      int, attribute, int *, value);
+
+
+REDEF(GLXFBConfig *,
+glXChooseFBConfig, Display *, dpy, int, screen,
+      const int *, attrib_list, int *, nelements)
+{
+  UNUSED(dpy && screen);
+  return ACCL(glXChooseFBConfig, accl_dpy, DefaultScreen(accl_dpy),
+              attrib_list, nelements);
+}
+
+
+static
+GLXFBConfig
+get_dspl_config(Display *dpy, GLXFBConfig config)
+{
+  int attrib_list[] = {
+    GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT | GLX_PBUFFER_BIT | GLX_PIXMAP_BIT,
+    GLX_DOUBLEBUFFER, True,
+    GLX_RENDER_TYPE, GLX_RGBA_BIT,
+    GLX_RED_SIZE, 8,
+    GLX_GREEN_SIZE, 8,
+    GLX_BLUE_SIZE, 8,
+    GLX_ALPHA_SIZE, 8,
+    GLX_X_RENDERABLE, True,
+
+    GLX_LEVEL, 0,
+    GLX_STEREO, 0,
+    None
+  };
+
+  for (int i = 8 * 2; attrib_list[i] != None; i += 2)
+    {
+      int err;
+      CHECK(err = ACCL(glXGetFBConfigAttrib, accl_dpy, config,
+                       attrib_list[i], &attrib_list[i + 1]),
+            != 0, die, "failed with error 0x%x", err);
+    }
+
+  int nelements;
+  GLXFBConfig *dspl_configs =
+    MEM(DSPL(glXChooseFBConfig, dpy, DefaultScreen(dpy),
+             attrib_list, &nelements));
+  return dspl_configs[0];
+}
+
+
+DSPL_DPY(int,
+glXGetConfig, Display *, dpy, XVisualInfo *, vis, int, attrib, int *, value);
+
+
+static
+GLXFBConfig
+get_accl_config(Display *dpy, XVisualInfo *vis)
+{
+  int attrib_list[] = {
+    GLX_DRAWABLE_TYPE, GLX_PBUFFER_BIT,
+    GLX_DOUBLEBUFFER, True,
+    GLX_RENDER_TYPE, GLX_RGBA_BIT,
+    GLX_RED_SIZE, 8,
+    GLX_GREEN_SIZE, 8,
+    GLX_BLUE_SIZE, 8,
+    GLX_ALPHA_SIZE, 8,
+
+    GLX_LEVEL, 0,
+    GLX_STEREO, 0,
+    None
+  };
+
+  for (int i = 7 * 2; attrib_list[i] != None; i += 2)
+    {
+      int err;
+      CHECK(err = DSPL(glXGetConfig, dpy, vis,
+                       attrib_list[i], &attrib_list[i + 1]),
+            != 0, die, "failed with error 0x%x", err);
+    }
+
+  int nelements;
+  GLXFBConfig *configs =
+    MEM(ACCL(glXChooseFBConfig, accl_dpy, DefaultScreen(accl_dpy),
+             attrib_list, &nelements));
+  return configs[0];
+}
+
+
+REDEF(XVisualInfo *,
+glXGetVisualFromFBConfig, Display *, dpy, GLXFBConfig, config)
+{
+  GLXFBConfig dspl_config = get_dspl_config(dpy, config);
+  return DSPL(glXGetVisualFromFBConfig, dpy, dspl_config);
+}
+
+
+IMPORT(XGetGeometry);
+
+
+static
+void
+get_dimensions(Display *dpy, GLXDrawable draw,
+               GLsizei *pwidth, GLsizei *pheight)
+{
+  Window root;
+  int x, y;
+  unsigned int width, height, border_width, depth;
+  DSPL(XGetGeometry, dpy, draw, &root, &x, &y,
+       &width, &height, &border_width, &depth);
+  *pwidth = width;
+  *pheight = height;
+}
+
+
+REDEF(GLXPbuffer,
+glXCreatePbuffer, Display *, dpy, GLXFBConfig, config,
+      const int *, attrib_list)
+{
+  GLXFBConfig dspl_config = get_dspl_config(dpy, config);
+  GLXPbuffer res = DSPL(glXCreatePbuffer, dpy, dspl_config, attrib_list);
+  if (res)
+    drw_info_create(dpy, res, config);
+  return res;
+}
+
+
+static
+struct drw_info *
+lookup_with_pbuffer(Display *dpy, GLXDrawable draw, struct ctx_info *ci)
+{
+  struct drw_info *di = drw_info_lookup(dpy, draw);
+  if (! di)
+    {
+      /*
+        This is a drawable object other than GLXPbuffer, GLXPixmap and
+        GLXWindow (plain Window or Pixmap) so we didn't intercept its
+        creation and haven't assign drw_info to it.
+      */
+      di = drw_info_create(dpy, draw, ci->accl_config);
+    }
+  if (! di->accl_pbuffer)
+    {
+      get_dimensions(dpy, draw, &di->width, &di->height);
+      int attrib_list[] = {
+        GLX_PBUFFER_WIDTH, di->width,
+        GLX_PBUFFER_HEIGHT, di->height,
+        GLX_PRESERVED_CONTENTS, True,
+        None
+      };
+      di->accl_pbuffer =
+        ACCL(glXCreatePbuffer, accl_dpy, di->accl_config, attrib_list);
+    }
+  return di;
+}
+
+
+REDEF(void,
+glXQueryDrawable, Display *, dpy, GLXDrawable, draw, int, attribute,
+      unsigned int *, value)
+{
+  struct drw_info *di = lookup_with_pbuffer(dpy, draw, NULL);
+  ACCL(glXQueryDrawable, accl_dpy, di->accl_pbuffer, attribute, value);
+}
+
+
+REDEF(int,
+XDestroyWindow, Display *, dpy, Window, w)
+{
+  drw_info_destroy(dpy, w);
+  return DSPL(XDestroyWindow, dpy, w);
+}
+
+
+REDEF(int,
+XFreePixmap, Display *, dpy, Pixmap, pixmap)
+{
+  drw_info_destroy(dpy, pixmap);
+  return DSPL(XFreePixmap, dpy, pixmap);
+}
+
+
+REDEF(Bool,
+glXMakeContextCurrent, Display *, dpy, GLXDrawable, draw, GLXDrawable, read,
+      GLXContext, ctx)
+{
+  GLXContext dspl_ctx;
+  GLXDrawable accl_pbuffer;
+  GLXDrawable read_accl_pbuffer;
+  if (likely(draw && read && ctx))
+    {
+      struct ctx_info *ci = ctx_info_lookup(ctx);
+      struct drw_info *di = lookup_with_pbuffer(dpy, draw, ci);
+      struct drw_info *read_di = lookup_with_pbuffer(dpy, read, ci);
+      dspl_ctx = ci->dspl_ctx;
+      accl_pbuffer = di->accl_pbuffer;
+      read_accl_pbuffer = read_di->accl_pbuffer;
+    }
+  else
+    {
+      dspl_ctx = NULL;
+      accl_pbuffer = None;
+      read_accl_pbuffer = None;
+    }
+
+  Bool res = ACCL(glXMakeContextCurrent, accl_dpy,
+                  accl_pbuffer, read_accl_pbuffer, ctx);
+  if (res)
+    DSPL(glXMakeContextCurrent, dpy, draw, read, dspl_ctx);
+  return res;
+}
+
+
+REDEF(Bool,
+glXMakeCurrent, Display *, dpy, GLXDrawable, draw, GLXContext, ctx)
+{
+  GLXContext dspl_ctx;
+  GLXDrawable accl_pbuffer;
+  if (likely(draw && ctx))
+    {
+      struct ctx_info *ci = ctx_info_lookup(ctx);
+      struct drw_info *di = lookup_with_pbuffer(dpy, draw, ci);
+      dspl_ctx = ci->dspl_ctx;
+      accl_pbuffer = di->accl_pbuffer;
+    }
+  else
+    {
+      dspl_ctx = NULL;
+      accl_pbuffer = None;
+    }
+
+  Bool res = ACCL(glXMakeCurrent, accl_dpy, accl_pbuffer, ctx);
+  if (res)
+    DSPL(glXMakeCurrent, dpy, draw, dspl_ctx);
+  return res;
+}
+
+
+ACCL_DPY(Bool,
+glXIsDirect, Display *, dpy, GLXContext, ctx);
+
+
+REDEF(GLXContext,
+glXCreateNewContext, Display *, dpy, GLXFBConfig, config,
+      int, render_type, GLXContext, share_list,
+      Bool, direct)
+{
+  UNUSED(render_type);
+  GLXContext res = ACCL(glXCreateNewContext, accl_dpy, config,
+                        GLX_RGBA_TYPE, share_list, direct);
+  if (res)
+    {
+      GLXFBConfig dspl_config = get_dspl_config(dpy, config);
+      GLXContext dspl_ctx = MEM(DSPL(glXCreateNewContext, dpy, dspl_config,
+                                     GLX_RGBA_TYPE, NULL, direct));
+      if (DSPL(glXIsDirect, dpy, dspl_ctx) != True)
+        error("connection to %s is not direct", getenv("DISPLAY"));
+      ctx_info_create(res, config, dspl_ctx);
+    }
+  return res;
+}
+
+
+REDEF(GLXContext,
+glXCreateContext, Display *, dpy, XVisualInfo *, vis,
+      GLXContext, share_list, Bool, direct)
+{
+  GLXFBConfig accl_config = get_accl_config(dpy, vis);
+  GLXContext res = ACCL(glXCreateNewContext, accl_dpy, accl_config,
+                        GLX_RGBA_TYPE, share_list, direct);
+  if (res)
+    {
+      GLXContext dspl_ctx = MEM(DSPL(glXCreateContext, dpy, vis, NULL, direct));
+      if (DSPL(glXIsDirect, dpy, dspl_ctx) != True)
+        error("connection to %s is not direct", getenv("DISPLAY"));
+      ctx_info_create(res, accl_config, dspl_ctx);
+    }
+  return res;
+}
+
+
+REDEF(void,
+glXDestroyContext, Display *, dpy, GLXContext, ctx)
+{
+  struct ctx_info *ci = ctx_info_lookup(ctx);
+  DSPL(glXDestroyContext, dpy, ci->dspl_ctx);
+  ctx_info_destroy(ctx);
+  ACCL(glXDestroyContext, accl_dpy, ctx);
+}
+
+
+REDEF(GLXContext,
+glXGetCurrentContext, void)
+{
+  return ACCL(glXGetCurrentContext);
+}
+
+
+REDEF(Display *,
+glXGetCurrentDisplay, void)
+{
+  return DSPL(glXGetCurrentDisplay);
+}
+
+
+REDEF(GLXDrawable,
+glXGetCurrentDrawable, void)
+{
+  return DSPL(glXGetCurrentDrawable);
+}
+
+
+REDEF(GLXDrawable,
+glXGetCurrentReadDrawable, void)
+{
+  return DSPL(glXGetCurrentReadDrawable);
+}
+
+
+IMPORT(glGetError);
+IMPORT(glViewport);
+IMPORT(glDisable);
+IMPORT(glDepthMask);
+IMPORT(glPixelStorei);
+IMPORT(glGenTextures);
+IMPORT(glBindTexture);
+IMPORT(glTexStorage2D);
+IMPORT(glTexParameteri);
+IMPORT(glVertexPointer);
+IMPORT(glTexCoordPointer);
+IMPORT(glEnableClientState);
+IMPORT(glEnable);
+IMPORT(glTexSubImage2D);
+IMPORT(glDrawArrays);
+
+
+REDEF(void,
+glXSwapBuffers, Display *, dpy, GLXDrawable, draw)
+{
+  struct drw_info *di = drw_info_lookup(dpy, draw);
+
+  ACCL(glXSwapBuffers, accl_dpy, di->accl_pbuffer);
+
+  GLenum accl_err = glGetError();
+  GLenum dspl_err = DSPL(glGetError);
+
+  GLint save_pixel_pack_buffer;
+  glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &save_pixel_pack_buffer);
+
+  GLsizei width, height;
+  get_dimensions(dpy, draw, &width, &height);
+  if (unlikely(di->width != width || di->height != height))
+    {
+      di->width = width;
+      di->height = height;
+
+      ACCL(glXDestroyPbuffer, accl_dpy, di->accl_pbuffer);
+      int attrib_list[] = {
+        GLX_PBUFFER_WIDTH, di->width,
+        GLX_PBUFFER_HEIGHT, di->height,
+        GLX_PRESERVED_CONTENTS, True,
+        None
+      };
+      di->accl_pbuffer =
+        ACCL(glXCreatePbuffer, accl_dpy, di->accl_config, attrib_list);
+
+      glDeleteBuffers(2, di->accl_copy_pbuffers);
+      DSPL(glDeleteTextures, 1, &di->dspl_texture);
+      di->accl_copy_pbuffers[0] = None;
+      di->accl_copy_pbuffers[1] = None;
+      di->dspl_texture = None;
+
+      GLXContext ctx = glXGetCurrentContext();
+      GLXDrawable read_drw = glXGetCurrentReadDrawable();
+      struct drw_info *read_di = drw_info_lookup(dpy, read_drw);
+      ACCL(glXMakeContextCurrent, accl_dpy,
+           di->accl_pbuffer, read_di->accl_pbuffer, ctx);
+
+      DSPL(glViewport, 0, 0, di->width, di->height);
+    }
+
+  if (unlikely(! di->dspl_texture))
+    {
+      GLsizei row_size = (di->width * 3 + 7) & ~7;
+      GLsizei size = row_size * di->height;
+
+      glGenBuffers(2, di->accl_copy_pbuffers);
+      glBindBuffer(GL_PIXEL_PACK_BUFFER, di->accl_copy_pbuffers[0]);
+      glBufferData(GL_PIXEL_PACK_BUFFER, size, NULL, GL_STREAM_COPY);
+      glBindBuffer(GL_PIXEL_PACK_BUFFER, di->accl_copy_pbuffers[1]);
+      glBufferData(GL_PIXEL_PACK_BUFFER, size, NULL, GL_STREAM_COPY);
+
+      DSPL(glDisable, GL_DEPTH_TEST);
+      DSPL(glDepthMask, GL_FALSE);
+
+      DSPL(glPixelStorei, GL_UNPACK_ALIGNMENT, 8);
+
+      DSPL(glGenTextures, 1, &di->dspl_texture);
+      DSPL(glBindTexture, GL_TEXTURE_2D, di->dspl_texture);
+      DSPL(glTexStorage2D, GL_TEXTURE_2D, 1, GL_RGB8, di->width, di->height);
+      DSPL(glTexParameteri, GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+      DSPL(glTexParameteri, GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+      static const GLfloat vrect[] = {
+        -1, -1,     1, -1,    -1,  1,
+         1,  1,    -1,  1,     1, -1
+      };
+      static const GLfloat trect[] = {
+         0,  0,     1,  0,     0,  1,
+         1,  1,     0,  1,     1,  0
+      };
+      DSPL(glVertexPointer, 2, GL_FLOAT, 2 * sizeof(GLfloat), vrect);
+      DSPL(glTexCoordPointer, 2, GL_FLOAT, 2 * sizeof(GLfloat), trect);
+      DSPL(glEnableClientState, GL_VERTEX_ARRAY);
+      DSPL(glEnableClientState, GL_TEXTURE_COORD_ARRAY);
+      DSPL(glEnable, GL_TEXTURE_2D);
+
+      glBindBuffer(GL_PIXEL_PACK_BUFFER, save_pixel_pack_buffer);
+
+      GLenum err;
+      CHECK(err = glGetError(),
+            != accl_err, die, "failed with error 0x%x", err);
+      CHECK(err = DSPL(glGetError),
+            != dspl_err, die, "failed with error 0x%x", err);
+
+      return;
+    }
+
+  GLint save_read_buffer;
+  glGetIntegerv(GL_READ_BUFFER, &save_read_buffer);
+  if ((GLuint) save_read_buffer != GL_FRONT)
+    glReadBuffer(GL_FRONT);
+  glPushClientAttrib(GL_CLIENT_PIXEL_STORE_BIT);
+  glPixelStorei(GL_PACK_ALIGNMENT, 8);
+  glPixelStorei(GL_PACK_SWAP_BYTES, GL_FALSE);
+  glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
+  glPixelStorei(GL_PACK_SKIP_ROWS, 0);
+
+  glBindBuffer(GL_PIXEL_PACK_BUFFER, di->accl_copy_pbuffers[di->swap_odd]);
+  glReadPixels(0, 0, di->width, di->height,
+               GL_RGB, GL_UNSIGNED_BYTE, (GLvoid *) 0);
+
+  di->swap_odd ^= 1;
+
+  glBindBuffer(GL_PIXEL_PACK_BUFFER, di->accl_copy_pbuffers[di->swap_odd]);
+  void *data = glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
+  DSPL(glTexSubImage2D, GL_TEXTURE_2D, 0, 0, 0, di->width, di->height,
+       GL_RGB, GL_UNSIGNED_BYTE, data);
+  glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+
+  DSPL(glDrawArrays, GL_TRIANGLES, 0, 6);
+  DSPL(glXSwapBuffers, dpy, draw);
+
+  glPopClientAttrib();
+  if ((GLuint) save_read_buffer != GL_FRONT)
+    glReadBuffer(save_read_buffer);
+  glBindBuffer(GL_PIXEL_PACK_BUFFER, save_pixel_pack_buffer);
+
+  GLenum err;
+  CHECK(err = glGetError(),
+        != accl_err, die, "failed with error 0x%x", err);
+  CHECK(err = DSPL(glGetError),
+        != dspl_err, die, "failed with error 0x%x", err);
+}
+
+
+REDEF(GLXFBConfig *,
+glXGetFBConfigs, Display *, dpy, int, screen, int *, nelements)
+{
+  UNUSED(dpy && screen);
+  return ACCL(glXGetFBConfigs, accl_dpy, DefaultScreen(accl_dpy), nelements);
+}
+
+
+static char *extensions = NULL;
+
+
+REDEF(const char *,
+glXQueryExtensionsString, Display *, dpy, int, screen)
+{
+  UNUSED(dpy && screen);
+
+  static const char *const unsupported[] = {
+    "EXT_import_context", /* glXGetContextIDEXT
+                             glXImportContextEXT
+                             glXFreeContextEXT */
+  };
+
+  const char *v = __atomic_load_n(&extensions, __ATOMIC_ACQUIRE);
+  if (unlikely(! v))
+    {
+      char *nv = (char *) ACCL(glXQueryExtensionsString,
+                               accl_dpy, DefaultScreen(accl_dpy));
+      nv = MEM(strdup(nv));
+      for (size_t i = 0; i < sizeof(unsupported) / sizeof(*unsupported); ++i)
+        {
+          char *match = strstr(nv, unsupported[i]);
+          if (match)
+            {
+              size_t len = strlen(unsupported[i]);
+              if (nv < match)
+                {
+                  if (*--match != ' ')
+                    continue;
+                  else
+                    ++len;
+                }
+              if (match[len] == ' ')
+                {
+                  if (match[0] != ' ')
+                    ++len;
+                }
+              else if (match[len] != '\0')
+                {
+                  continue;
+                }
+              memmove(match, match + len, strlen(match + len) + 1);
+            }
+        }
+      if (__atomic_compare_exchange_n(&extensions, &v, nv, 0,
+                                      __ATOMIC_RELEASE, __ATOMIC_ACQUIRE))
+        v = nv;
+      else
+        free(nv);
+    }
+  return v;
+}
+
+
+REDEF(const char *,
+glXQueryServerString, Display *, dpy, int, screen, int, name)
+{
+  UNUSED(dpy && screen);
+  return ACCL(glXQueryServerString,
+              accl_dpy, DefaultScreen(accl_dpy), name);
+}
+
+
+REDEF(GLXPixmap,
+glXCreateGLXPixmap, Display *, dpy, XVisualInfo *, vis,
+      Pixmap, pixmap)
+{
+  GLXPixmap res = DSPL(glXCreateGLXPixmap, dpy, vis, pixmap);
+  if (res)
+    drw_info_create(dpy, res, get_accl_config(dpy, vis));
+  return res;
+}
+
+
+REDEF(void,
+glXDestroyGLXPixmap, Display *, dpy, GLXPixmap, pixmap)
+{
+  drw_info_destroy(dpy, pixmap);
+  DSPL(glXDestroyGLXPixmap, dpy, pixmap);
+}
+
+
+REDEF(GLXPixmap,
+glXCreatePixmap, Display *, dpy, GLXFBConfig, config,
+      Pixmap, pixmap, const int *, attrib_list)
+{
+  GLXFBConfig dspl_config = get_dspl_config(dpy, config);
+  GLXPixmap res = DSPL(glXCreatePixmap, dpy, dspl_config, pixmap, attrib_list);
+  if (res)
+    drw_info_create(dpy, res, config);
+  return res;
+}
+
+
+REDEF(void,
+glXDestroyPixmap, Display *, dpy, GLXPixmap, pixmap)
+{
+  drw_info_destroy(dpy, pixmap);
+  DSPL(glXDestroyPixmap, dpy, pixmap);
+}
+
+
+REDEF(GLXWindow,
+glXCreateWindow, Display *, dpy, GLXFBConfig, config,
+      Window, win, const int *, attrib_list)
+{
+  GLXFBConfig dspl_config = get_dspl_config(dpy, config);
+  GLXWindow res = DSPL(glXCreateWindow, dpy, dspl_config, win, attrib_list);
+  if (res)
+    drw_info_create(dpy, res, config);
+  return res;
+}
+
+
+REDEF(void,
+glXDestroyWindow, Display *, dpy, GLXWindow, win)
+{
+  drw_info_destroy(dpy, win);
+  DSPL(glXDestroyWindow, dpy, win);
+}
+
+
+REDEF(void,
+glXWaitGL, void)
+{
+  glFinish();
+}
+
+
+ACCL_DPY(void,
+glXCopyContext, Display *, dpy, GLXContext, src, GLXContext, dst,
+      unsigned long, mask);
+
+
+ACCL_DPY(Bool,
+glXQueryExtension, Display *, dpy, int *, errorBase, int *, eventBase);
+
+
+ACCL_DPY(Bool,
+glXQueryVersion, Display *, dpy, int *, major, int *, minor);
+
+
+ACCL_DPY(int,
+glXQueryContext, Display *, dpy, GLXContext, ctx,
+      int, attribute, int *, value);
+
+
+ACCL_DPY(int,
+glXQueryContextInfoEXT, Display *, dpy, GLXContext, ctx,
+      int, attribute, int *, value);
+
+
+DSPL_DPY(void,
+glXGetSelectedEvent, Display *, dpy, GLXDrawable, draw,
+         unsigned long *, event_mask);
+
+
+DSPL_DPY(void,
+glXSelectEvent, Display *, dpy, GLXDrawable, draw,
+         unsigned long, event_mask);
+
+
+DSPL_DPY(XVisualInfo *,
+glXChooseVisual, Display *, dpy, int, screen, int *, attribList);
+
+
+DSPL_DPY(void,
+glXWaitX, void);
+
+
 static __attribute__((__constructor__(1000)))
 void
 init0(void)
@@ -476,6 +1120,7 @@ fini(void)
   cuckoo_hash_destroy(&drw_infos);
   cuckoo_hash_destroy(&ctx_infos);
 
+  free(extensions);
   free(version);
   free(vendor);
 }
