@@ -54,6 +54,8 @@ AC_CHECK_HEADER([kroki/likely.h], [],
                 [AC_MSG_ERROR([kroki/likely.h is required])])
 AC_CHECK_HEADER([kroki/error.h], [],
                 [AC_MSG_ERROR([kroki/error.h is required])])
+AC_CHECK_HEADER([cuckoo_hash.h], [],
+                [AC_MSG_ERROR([cuckoo_hash.h is required])])
 AC_CHECK_HEADER([link.h], [], [AC_MSG_ERROR([link.h is required])])
 AC_CHECK_HEADER([X11/Xlib.h], [], [AC_MSG_ERROR([X11/Xlib.h is required])])
 AC_CHECK_HEADER([GL/glx.h], [], [AC_MSG_ERROR([GL/glx.h is required])])
@@ -68,6 +70,12 @@ AC_SEARCH_LIBS([dlopen], [dl], [LIBADD_DLOPEN=$ac_cv_search_dlopen],
 AC_SUBST([LIBADD_DLOPEN])
 
 LT_FUNC_DLSYM_USCORE
+
+LIBADD_CUCKOO_HASH=
+AC_SEARCH_LIBS([cuckoo_hash_init], [cuckoo_hash],
+               [LIBADD_CUCKOO_HASH=$ac_cv_search_cuckoo_hash_init],
+               [AC_MSG_ERROR([libkroki-glxoffload requires libcuckoo_hash])])
+AC_SUBST([LIBADD_CUCKOO_HASH])
 
 LIBS=$save_LIBS
 

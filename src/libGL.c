@@ -22,6 +22,8 @@
 #endif
 #include <kroki/likely.h>
 #include <kroki/error.h>
+#include <cuckoo_hash.h>
+#include <pthread.h>
 #include <X11/Xlib.h>
 #define GL_GLEXT_PROTOTYPES
 #include <GL/glx.h>
@@ -158,6 +160,168 @@ static void *dspl_libgl = NULL;
 static Display *accl_dpy = NULL;
 
 
+struct drw_info_key
+{
+  Display *dpy;
+  GLXDrawable drw;
+};
+
+struct drw_info
+{
+  struct drw_info_key key;
+  GLXFBConfig accl_config;
+  GLXPbuffer accl_pbuffer;
+
+  GLsizei width;
+  GLsizei height;
+  GLuint accl_copy_pbuffers[2];
+  GLuint dspl_texture;
+  int swap_odd;
+};
+
+struct ctx_info
+{
+  GLXContext accl_ctx;
+  GLXFBConfig accl_config;
+  GLXContext dspl_ctx;
+};
+
+
+static pthread_mutex_t ctx_infos_mutex = PTHREAD_MUTEX_INITIALIZER;
+static struct cuckoo_hash ctx_infos;
+
+
+static
+struct ctx_info *
+ctx_info_create(GLXContext accl_ctx, GLXFBConfig accl_config,
+                GLXContext dspl_ctx)
+{
+  struct ctx_info *res = MEM(malloc(sizeof(*res)));
+  res->accl_ctx = accl_ctx;
+  res->accl_config = accl_config;
+  res->dspl_ctx = dspl_ctx;
+  pthread_mutex_lock(&ctx_infos_mutex);
+  CHECK(cuckoo_hash_insert(&ctx_infos,
+                           &res->accl_ctx, sizeof(res->accl_ctx), res),
+        != NULL, die, "%m");
+  pthread_mutex_unlock(&ctx_infos_mutex);
+  return res;
+}
+
+
+static
+struct ctx_info *
+ctx_info_lookup(GLXContext accl_ctx)
+{
+  pthread_mutex_lock(&ctx_infos_mutex);
+  struct cuckoo_hash_item *it =
+    cuckoo_hash_lookup(&ctx_infos, &accl_ctx, sizeof(accl_ctx));
+  pthread_mutex_unlock(&ctx_infos_mutex);
+  return (it ? it->value : NULL);
+}
+
+
+static
+void
+ctx_info_destroy(GLXContext accl_ctx)
+{
+  pthread_mutex_lock(&ctx_infos_mutex);
+  struct cuckoo_hash_item *it =
+    cuckoo_hash_lookup(&ctx_infos, &accl_ctx, sizeof(accl_ctx));
+  cuckoo_hash_remove(&ctx_infos, it);
+  pthread_mutex_unlock(&ctx_infos_mutex);
+  free(it->value);
+}
+
+
+static pthread_mutex_t drw_infos_mutex = PTHREAD_MUTEX_INITIALIZER;
+static struct cuckoo_hash drw_infos;
+
+
+static
+struct drw_info *
+drw_info_create(Display *dpy, GLXDrawable drw, GLXFBConfig config)
+{
+  struct drw_info *res = MEM(malloc(sizeof(*res)));
+  memset(&res->key, 0, sizeof(res->key));
+  res->key.dpy = dpy;
+  res->key.drw = drw;
+  res->accl_config = config;
+  res->accl_pbuffer = None;
+  res->width = 0;
+  res->height = 0;
+  res->accl_copy_pbuffers[0] = None;
+  res->accl_copy_pbuffers[1] = None;
+  res->dspl_texture = None;
+  res->swap_odd = 0;
+  pthread_mutex_lock(&drw_infos_mutex);
+  CHECK(cuckoo_hash_insert(&drw_infos, &res->key, sizeof(res->key), res),
+        != NULL, die, "%m");
+  pthread_mutex_unlock(&drw_infos_mutex);
+  return res;
+}
+
+
+static
+struct drw_info *
+drw_info_lookup(Display *dpy, GLXDrawable drw)
+{
+  struct drw_info_key key;
+  memset(&key, 0, sizeof(key));
+  key.dpy = dpy;
+  key.drw = drw;
+  pthread_mutex_lock(&drw_infos_mutex);
+  struct cuckoo_hash_item *it =
+    cuckoo_hash_lookup(&drw_infos, &key, sizeof(key));
+  pthread_mutex_unlock(&drw_infos_mutex);
+  return (it ? it->value : NULL);
+}
+
+
+static
+void
+drw_info_destroy(Display *dpy, GLXDrawable drw);
+
+
+REDEF(void,
+glXDestroyPbuffer, Display *, dpy, GLXPbuffer, pbuf)
+{
+  drw_info_destroy(dpy, pbuf);
+  DSPL(glXDestroyPbuffer, dpy, pbuf);
+}
+
+
+IMPORT(glDeleteTextures);
+
+
+static
+void
+drw_info_destroy(Display *dpy, GLXDrawable drw)
+{
+  struct drw_info_key key;
+  memset(&key, 0, sizeof(key));
+  key.dpy = dpy;
+  key.drw = drw;
+  pthread_mutex_lock(&drw_infos_mutex);
+  struct cuckoo_hash_item *it =
+    cuckoo_hash_lookup(&drw_infos, &key, sizeof(key));
+  cuckoo_hash_remove(&drw_infos, it);
+  pthread_mutex_unlock(&drw_infos_mutex);
+  if (it)
+    {
+      struct drw_info *di = it->value;
+      if (di->accl_pbuffer)
+        ACCL(glXDestroyPbuffer, accl_dpy, di->accl_pbuffer);
+      if (di->dspl_texture)
+        {
+          glDeleteBuffers(2, di->accl_copy_pbuffers);
+          DSPL(glDeleteTextures, 1, &di->dspl_texture);
+        }
+      free(di);
+    }
+}
+
+
 /*
   _kroki_glxoffload_get_proc_address() must be exported
   (i.e. non-static; see kroki-glxoffload-audit.c).
@@ -273,6 +437,9 @@ static __attribute__((__constructor__(1000)))
 void
 init0(void)
 {
+  CHECK(cuckoo_hash_init(&ctx_infos, 2), == false, die, "%m");
+  CHECK(cuckoo_hash_init(&drw_infos, 2), == false, die, "%m");
+
   /*
     RTLD_DEEPBIND in dlopen() makes original KROKI_GLXOFFLOAD_LIBGL
     see symbols of its own dependencies rather than our overrides.
@@ -305,6 +472,9 @@ fini(void)
   XCloseDisplay(accl_dpy);
 
   dlclose(dspl_libgl);
+
+  cuckoo_hash_destroy(&drw_infos);
+  cuckoo_hash_destroy(&ctx_infos);
 
   free(version);
   free(vendor);
