@@ -1228,7 +1228,7 @@ init0(void)
   CHECK(cuckoo_hash_init(&fnt_infos, 2), == false, die, "%m");
 
   /*
-    RTLD_DEEPBIND in dlopen() makes original KROKI_GLXOFFLOAD_LIBGL
+    RTLD_DEEPBIND in dlopen() makes original KROKI_GLXOFFLOAD_DSPL_LIBGL
     see symbols of its own dependencies rather than our overrides.
   */
   dspl_libgl = CHECK(dlopen(getenv("KROKI_GLXOFFLOAD_DSPL_LIBGL"),
