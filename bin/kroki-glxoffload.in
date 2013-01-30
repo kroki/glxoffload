@@ -58,7 +58,7 @@ DSPL_LIBGL=$(findlib "$LIBGL")
 ACCL_LIBGL=$(LD_LIBRARY_PATH="$LPATH" findlib "$LIBGL")
 
 
-TMPLINKDIR=${TMPDIR:-/tmp}/$(basename "$0").$$
+TMPLINKDIR=${TMPDIR:-/tmp}/$(basename "$0").$UID.$$
 trap 'rm -rf "$TMPLINKDIR"' EXIT
 mkdir -p "$TMPLINKDIR"
 rm -f "$TMPLINKDIR"/libkroki-glxoffload.so.0
