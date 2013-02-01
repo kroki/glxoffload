@@ -101,6 +101,7 @@ if [ $# -lt 1 ]; then
 fi
 
 
+TMOUT=60  # read timeout
 coproc BB { socat - "$BBSOCK"; }
 echo -n "C" >&${BB[1]}
 read -u ${BB[0]} -d $'\0' STATUS
