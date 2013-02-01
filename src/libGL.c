@@ -401,7 +401,7 @@ glXGetClientString, Display *, dpy, int, name)
 
 #define __ATOMIC_ACQUIRE
 #define __ATOMIC_RELEASE
-#define __atomic_load_n(pv, mm)  ((volatile __typeof__(*(pv))) *(pv))
+#define __atomic_load_n(pv, mm)  *(volatile __typeof__(*(pv)) *) (pv)
 #define __atomic_compare_exchange_n(pv, opv, nv, w, tmm, fmm)   \
   ({                                                            \
     __typeof__(*(opv)) _kroki_o = *(opv);                       \
