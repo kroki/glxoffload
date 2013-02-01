@@ -51,11 +51,8 @@ la_version(unsigned int version)
 unsigned int
 la_objopen(struct link_map *map, Lmid_t lmid, uintptr_t *cookie)
 {
-  UNUSED(lmid && cookie);
-  if (strstr(map->l_name, "/libkroki-glxoffload.so.0"))
-    return LA_FLG_BINDTO | LA_FLG_BINDFROM;
-  else
-    return 0;
+  UNUSED(map && lmid && cookie);
+  return LA_FLG_BINDTO | LA_FLG_BINDFROM;
 }
 
 
