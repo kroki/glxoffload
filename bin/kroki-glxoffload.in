@@ -102,7 +102,7 @@ fi
 
 
 TMOUT=60  # read timeout
-coproc BB { socat - "$BBSOCK"; }
+coproc BB { socat - "UNIX-CONNECT:$BBSOCK"; }
 echo -n "C" >&${BB[1]}
 read -u ${BB[0]} -d $'\0' STATUS
 if [ x"${STATUS:0:3}" != x"Yes" ]; then
