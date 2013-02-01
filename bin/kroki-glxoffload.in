@@ -1,32 +1,104 @@
 #! /usr/bin/env bash
-#
-# Copyright (C) 2013 Tomash Brechko.  All rights reserved.
-#
-# This file is part of kroki/glxoffload.
-#
-# Kroki/glxoffload is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Lesser General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# Kroki/glxoffload is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with kroki/glxoffload.  If not, see <http://www.gnu.org/licenses/>.
-#
+
+COPYRIGHT="
+Copyright (C) 2013 Tomash Brechko.  All rights reserved.
+
+This file is part of kroki/glxoffload.
+
+Kroki/glxoffload is free software: you can redistribute it and/or modify
+it under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Kroki/glxoffload is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with kroki/glxoffload.  If not, see <http://www.gnu.org/licenses/>.
+"
+
 
 set -o errexit -o nounset -o noclobber
 
 
-# Parse options
-
-
-BBSOCK=${KROKI_GLXOFFLOAD_BBSOCK:-/var/run/bumblebee.socket}
+SCRIPT=$(basename "$0")
+BBSOCK=/var/run/bumblebee.socket
 LIBGL=libGL.so.1
 PRELOAD=libpthread.so.0:libglapi.so.0
+AUDIT=${LD_AUDIT:-}
+VERBOSE=0
+
+
+usage() {
+    echo "Usage: $SCRIPT [OPTIONS] [--] PROGRAM [ARGS]"
+    echo
+    echo "Options are:"
+    echo "  -b, --bb-sock SOCKET    Bumblebee socket (default $BBSOCK)"
+    echo "  -a, --audit             Report unhandled GLX calls (can affect FPS)"
+    echo "  -d, --verbose           Verbose output"
+    echo "  -h, --help              Print this message and exit"
+    echo "  -v, --version           Print version and exit"
+}
+
+version() {
+    echo '@PACKAGE_NAME@ @PACKAGE_VERSION@'
+    echo "$COPYRIGHT"
+    echo 'Report bugs to <@PACKAGE_BUGREPORT@>.'
+}
+
+
+while [ $# -ge 1 ]; do
+    case "$1" in
+        -b|--b|--bb|--bb-|--bb-s|--bb-so|--bb-soc|--bb-sock)
+            if [ $# -lt 2 ]; then
+                echo "Option requires argument: $1" >&2
+                usage >&2
+                exit 1
+            fi
+            shift
+            BBSOCK=$1
+            ;;
+        -a|--a|--au|--aud|--audi|--audit)
+            AUDIT=kroki-glxoffload-audit.so:$AUDIT
+            ;;
+        -d|--verb|--verbo|--verbos|--verbose)
+            VERBOSE=1
+            ;;
+        -h|--h|--he|--hel|--help)
+            usage
+            exit 0
+            ;;
+        -v|--vers|--versi|--versio|--version)
+            version
+            exit 0
+            ;;
+        --)
+            shift
+            break
+            ;;
+        --v|--ve|--ver)
+            echo "Ambiguous option: $1" >&2
+            usage >&2
+            exit 1
+            ;;
+        -*)
+            echo "Unknown option: $1" >&2
+            usage >&2
+            exit 1
+            ;;
+        *)
+            break
+            ;;
+    esac
+    shift
+done
+
+if [ $# -lt 1 ]; then
+    usage >&2
+    exit 1
+fi
 
 
 coproc BB { socat - "$BBSOCK"; }
@@ -58,7 +130,7 @@ DSPL_LIBGL=$(findlib "$LIBGL")
 ACCL_LIBGL=$(LD_LIBRARY_PATH="$LPATH" findlib "$LIBGL")
 
 
-TMPLINKDIR=${TMPDIR:-/tmp}/$(basename "$0").$UID.$$
+TMPLINKDIR=${TMPDIR:-/tmp}/$SCRIPT.$UID.$$
 trap 'rm -rf "$TMPLINKDIR"' EXIT
 mkdir -p "$TMPLINKDIR"
 rm -f "$TMPLINKDIR"/libkroki-glxoffload.so.0
@@ -68,7 +140,14 @@ exec_prefix=$(dirname "$0")/..
 LPATH="@libdir@/@PACKAGE@/":$TMPLINKDIR:$LPATH
 
 
-#LD_AUDIT=kroki-glxoffload-audit.so:${LD_AUDIT:-} \
+if [ $VERBOSE -ne 0 ]; then
+    echo KROKI_GLXOFFLOAD_DPY="$DPY"
+    echo KROKI_GLXOFFLOAD_DSPL_LIBGL="$DSPL_LIBGL"
+    echo LD_LIBRARY_PATH="$LPATH:${LD_LIBRARY_PATH:-}"
+    echo LD_PRELOAD="$PRELOAD:${LD_PRELOAD:-}"
+fi
+
+LD_AUDIT=$AUDIT \
 KROKI_GLXOFFLOAD_DPY="$DPY" \
 KROKI_GLXOFFLOAD_DSPL_LIBGL="$DSPL_LIBGL" \
 LD_LIBRARY_PATH="$LPATH:${LD_LIBRARY_PATH:-}" \
