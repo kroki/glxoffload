@@ -128,9 +128,7 @@ struct redef_func
 
 
 #define UNUSED(v)                               \
-  do                                            \
-    (void) (v);                                 \
-  while (0)
+  (void) (v)
 
 #define PARENS(a)  (a)
 #define COMMA(...)  , ##__VA_ARGS__
