@@ -684,7 +684,7 @@ glXCreateNewContext, Display *, dpy, GLXFBConfig, config,
     {
       GLXFBConfig dspl_config = get_dspl_config(dpy, config);
       GLXContext dspl_ctx = MEM(DSPL(glXCreateNewContext, dpy, dspl_config,
-                                     GLX_RGBA_TYPE, NULL, direct));
+                                     GLX_RGBA_TYPE, NULL, True));
       if (DSPL(glXIsDirect, dpy, dspl_ctx) != True)
         error("connection to %s is not direct", getenv("DISPLAY"));
       ctx_info_create(res, config, dspl_ctx);
@@ -702,7 +702,7 @@ glXCreateContext, Display *, dpy, XVisualInfo *, vis,
                         GLX_RGBA_TYPE, share_list, direct);
   if (res)
     {
-      GLXContext dspl_ctx = MEM(DSPL(glXCreateContext, dpy, vis, NULL, direct));
+      GLXContext dspl_ctx = MEM(DSPL(glXCreateContext, dpy, vis, NULL, True));
       if (DSPL(glXIsDirect, dpy, dspl_ctx) != True)
         error("connection to %s is not direct", getenv("DISPLAY"));
       ctx_info_create(res, accl_config, dspl_ctx);
