@@ -89,6 +89,7 @@ README=$srcdir/README
 AC_CACHE_SAVE
 
 AC_CONFIG_FILES([
+kroki-glxoffload.spec
 Makefile
 src/Makefile
 ])

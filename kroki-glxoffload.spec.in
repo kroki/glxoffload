@@ -1,0 +1,60 @@
+%define fullname %{name}-@RPM_VERSION@-@RPM_RELEASE@
+
+Name:           @PACKAGE_TARNAME@
+Version:        @RPM_VERSION@
+Release:        @RPM_RELEASE@%{?dist}
+Summary:        Offload OpenGL/GLX rendering to accelerated video card
+
+License:        LGPLv3+
+URL:            @PACKAGE_URL@
+Source:         %{fullname}.tar.bz2
+
+BuildRequires:  libX11-devel, mesa-libGL-devel
+BuildRequires:  kroki-error-devel, kroki-likely-devel, cuckoo-hash-devel
+Requires:       cuckoo-hash, socat
+
+%description
+Kroki/glxoffload is a wrapper around system libGL that redirects
+OpenGL/GLX rendering to discrete video accelerator driven by
+Bumblebee (https://github.com/Bumblebee-Project/Bumblebee) found in
+integrated/discrete video card setups like NVIDIA Optimus.  It is
+similar to Primus (https://github.com/amonakov/primus), but has an
+independent code base with a number of improvements:
+
+* Completely transparent to OpenGL calls.  No commit to a particular
+  function list is required, all extensions exported by the
+  accelerated libGL are immediately available.
+
+* Thread-safe: no additional threads are created, rendering is done
+  synchronously in the calling thread.
+
+* Slightly faster (higher FPS rate) than Primus (while also consuming
+  less CPU), which itself is a lot faster than VirtualGL
+  (http://www.virtualgl.org/) (to be fair it should be noted that
+  VirtualGL has different design goals; neither Primus nor
+  Kroki/glxoffload support connection to X server over the network).
+
+* Supports `glXUseXFont()` out of the box.
+
+
+%prep
+%setup -q -n %{fullname}
+
+
+%build
+%configure
+make %{?_smp_mflags}
+
+
+%install
+rm -rf $RPM_BUILD_ROOT
+%make_install
+
+
+%files
+%defattr(-,root,root,-)
+%{_bindir}/*
+%{_libdir}/*
+
+
+%changelog

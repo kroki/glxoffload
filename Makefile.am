@@ -17,6 +17,7 @@ bin_SCRIPTS =					\
 
 EXTRA_DIST =					\
 	version.sh				\
+	kroki-glxoffload.spec			\
 	README.md
 
 
