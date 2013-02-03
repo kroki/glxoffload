@@ -1308,31 +1308,6 @@ glXQueryContextInfoEXT, Display *, dpy, GLXContext, ctx,
       int, attribute, int *, value);
 
 
-ACCL_DPY(Bool,
-glXJoinSwapGroupNV, Display *, dpy, GLXDrawable, drawable, GLuint, group);
-
-
-ACCL_DPY(Bool,
-glXBindSwapBarrierNV, Display *, dpy, GLuint, group, GLuint, barrier);
-
-
-ACCL_DPY(Bool,
-glXQuerySwapGroupNV, Display *, dpy, GLXDrawable,
-         drawable, GLuint *, group, GLuint *, barrier);
-
-ACCL_DPY(Bool,
-glXQueryMaxSwapGroupsNV, Display *, dpy, int, screen,
-         GLuint *, maxGroups, GLuint *, maxBarriers);
-
-
-ACCL_DPY(Bool,
-glXQueryFrameCountNV, Display *, dpy, int, screen, GLuint *, count);
-
-
-ACCL_DPY(Bool,
-glXResetFrameCountNV, Display *, dpy, int, screen);
-
-
 DSPL_DPY(void,
 glXGetSelectedEvent, Display *, dpy, GLXDrawable, draw,
          unsigned long *, event_mask);
@@ -1362,6 +1337,31 @@ glXCopySubBufferMESA, Display *, dpy, GLXDrawable, drawable,
 
 DSPL_DPY(Bool,
 glXReleaseBuffersMESA, Display *, dpy, GLXDrawable, draw);
+
+
+DSPL_DPY(Bool,
+glXJoinSwapGroupNV, Display *, dpy, GLXDrawable, drawable, GLuint, group);
+
+
+DSPL_DPY(Bool,
+glXBindSwapBarrierNV, Display *, dpy, GLuint, group, GLuint, barrier);
+
+
+DSPL_DPY(Bool,
+glXQuerySwapGroupNV, Display *, dpy, GLXDrawable,
+         drawable, GLuint *, group, GLuint *, barrier);
+
+DSPL_DPY(Bool,
+glXQueryMaxSwapGroupsNV, Display *, dpy, int, screen,
+         GLuint *, maxGroups, GLuint *, maxBarriers);
+
+
+DSPL_DPY(Bool,
+glXQueryFrameCountNV, Display *, dpy, int, screen, GLuint *, count);
+
+
+DSPL_DPY(Bool,
+glXResetFrameCountNV, Display *, dpy, int, screen);
 
 
 DSPL_DPY(void,
