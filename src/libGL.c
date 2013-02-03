@@ -644,6 +644,15 @@ glXMakeContextCurrent, Display *, dpy, GLXDrawable, draw, GLXDrawable, read,
 
 
 REDEF(Bool,
+glXMakeCurrentReadSGI, Display *, dpy, GLXDrawable, draw, GLXDrawable, read,
+      GLXContext, ctx)
+{
+  return glXMakeContextCurrent(dpy, draw, read, ctx);
+}
+
+
+
+REDEF(Bool,
 glXMakeCurrent, Display *, dpy, GLXDrawable, draw, GLXContext, ctx)
 {
   GLXContext dspl_ctx;
@@ -711,6 +720,26 @@ glXCreateContext, Display *, dpy, XVisualInfo *, vis,
 }
 
 
+REDEF(GLXContext,
+glXCreateContextAttribsARB, Display *, dpy, GLXFBConfig, config,
+      GLXContext, share_list, Bool, direct, const int *, attrib_list)
+{
+  // Color index rendering is obsolete so let's pass attrib_list as-is.
+  GLXContext res = ACCL(glXCreateContextAttribsARB, accl_dpy, config,
+                        share_list, direct, attrib_list);
+  if (res)
+    {
+      GLXFBConfig dspl_config = get_dspl_config(dpy, config);
+      GLXContext dspl_ctx = MEM(DSPL(glXCreateContextAttribsARB, dpy,
+                                     dspl_config, NULL, True, attrib_list));
+      if (DSPL(glXIsDirect, dpy, dspl_ctx) != True)
+        error("connection to %s is not direct", getenv("DISPLAY"));
+      ctx_info_create(res, config, dspl_ctx);
+    }
+  return res;
+}
+
+
 REDEF(void,
 glXDestroyContext, Display *, dpy, GLXContext, ctx)
 {
@@ -746,6 +775,13 @@ REDEF(GLXDrawable,
 glXGetCurrentReadDrawable, void)
 {
   return DSPL(glXGetCurrentReadDrawable);
+}
+
+
+REDEF(GLXDrawable,
+glXGetCurrentReadDrawableSGI, void)
+{
+  return glXGetCurrentReadDrawable();
 }
 
 
@@ -904,51 +940,263 @@ glXGetFBConfigs, Display *, dpy, int, screen, int *, nelements)
 }
 
 
+enum extension_requires { NONE = 0x0, ACCL = 0x1, DSPL = 0x2 };
+
+struct extension_info
+{
+  const char *name;
+  enum extension_requires requires;
+};
+
+static const struct extension_info extension_supported[] = {
+  /* glXCreateContextAttribsARB */
+  { " GLX_ARB_create_context ", ACCL | DSPL },
+
+  { " GLX_ARB_create_context_profile ", ACCL | DSPL },
+
+  { " GLX_ARB_create_context_robustness ", ACCL | DSPL },
+
+  { " GLX_ARB_fbconfig_float ", ACCL },
+
+  { " GLX_ARB_framebuffer_sRGB ", ACCL },
+
+  /* glXGetProcAddressARB */
+  { " GLX_ARB_get_proc_address ", ACCL },
+
+  { " GLX_ARB_multisample ", ACCL },
+
+  { " GLX_EXT_buffer_age ", ACCL },
+
+  { " GLX_EXT_create_context_es2_profile ", ACCL | DSPL },
+
+  { " GLX_EXT_create_context_es_profile ", ACCL | DSPL },
+
+  { " GLX_EXT_fbconfig_packed_float ", ACCL },
+
+  { " GLX_EXT_framebuffer_sRGB ", ACCL },
+
+#if 0
+  /* glXFreeContextEXT, glXGetContextIDEXT, glXGetCurrentDisplayEXT,
+     glXImportContextEXT, glXQueryContextInfoEXT */
+  { " GLX_EXT_import_context ", ? },
+#endif
+
+  /* glXSwapIntervalEXT */
+  { " GLX_EXT_swap_control ", DSPL },
+
+  { " GLX_EXT_swap_control_tear ", DSPL },
+
+#if 0
+  /* glXBindTexImageEXT, glXReleaseTexImageEXT */
+  { " GLX_EXT_texture_from_pixmap ", ? },
+#endif
+
+  { " GLX_EXT_visual_info ", DSPL },
+
+  { " GLX_EXT_visual_rating ", DSPL },
+
+  { " GLX_INTEL_swap_event ", DSPL },
+
+#if 0
+  /* glXGetAGPOffsetMESA */
+  { " GLX_MESA_agp_offset ", ? },
+#endif
+
+  /* glXCopySubBufferMESA */
+  { " GLX_MESA_copy_sub_buffer ", DSPL },
+
+#if 0
+  /* glXCreateGLXPixmapMESA */
+  { " GLX_MESA_pixmap_colormap ", ? },
+#endif
+
+  /* glXReleaseBuffersMESA */
+  { " GLX_MESA_release_buffers ", DSPL },
+
+#if 0
+  /* glXSet3DfxModeMESA */
+  { " GLX_MESA_set_3dfx_mode ", ? },
+#endif
+
+  /* glXCopyImageSubDataNV */
+  { " GLX_NV_copy_image ", ACCL },
+
+  { " GLX_NV_float_buffer ", ACCL },
+
+  { " GLX_NV_multisample_coverage ", ACCL },
+
+#if 0
+  /* glXBindVideoDeviceNV, glXEnumerateVideoDevicesNV */
+  { " GLX_NV_present_video ", ? },
+#endif
+
+  /* glXBindSwapBarrierNV, glXJoinSwapGroupNV, glXQueryFrameCountNV,
+     glXQueryMaxSwapGroupsNV, glXQuerySwapGroupNV, glXResetFrameCountNV */
+  { " GLX_NV_swap_group ", DSPL },
+
+#if 0
+  /* glXBindVideoCaptureDeviceNV, glXEnumerateVideoCaptureDevicesNV,
+     glXLockVideoCaptureDeviceNV, glXQueryVideoCaptureDeviceNV,
+     glXReleaseVideoCaptureDeviceNV */
+  { " GLX_NV_video_capture ", ? },
+#endif
+
+#if 0
+  /* glXBindVideoImageNV, glXGetVideoDeviceNV, glXGetVideoInfoNV,
+     glXReleaseVideoDeviceNV, glXReleaseVideoImageNV,
+     glXSendPbufferToVideoNV */
+  { " GLX_NV_video_output ", ? },
+#endif
+
+  { " GLX_OML_swap_method ", ACCL },
+
+#if 0
+  /* glXGetMscRateOML, glXGetSyncValuesOML, glXSwapBuffersMscOML,
+     glXWaitForMscOML, glXWaitForSbcOML */
+  { " GLX_OML_sync_control ", ? },
+#endif
+
+  { " GLX_SGIS_multisample ", ACCL },
+
+#if 0
+  { " GLX_SGIX_dmbuffer ", ? },
+#endif
+
+#if 0
+  /* glXChooseFBConfigSGIX, glXCreateContextWithConfigSGIX,
+     glXCreateGLXPixmapWithConfigSGIX, glXGetFBConfigAttribSGIX,
+     glXGetFBConfigFromVisualSGIX, glXGetVisualFromFBConfigSGIX */
+  { " GLX_SGIX_fbconfig ", ? },
+#endif
+
+#if 0
+  /* glXQueryHyperpipeNetworkSGIX, glXHyperpipeConfigSGIX,
+     glXQueryHyperpipeConfigSGIX, glXDestroyHyperpipeConfigSGIX,
+     glXBindHyperpipeSGIX, glXQueryHyperpipeBestAttribSGIX,
+     glXHyperpipeAttribSGIX, glXQueryHyperpipeAttribSGIX */
+  { " GLX_SGIX_hyperpipe ", ? },
+#endif
+
+#if 0
+  /* glXCreateGLXPbufferSGIX, glXDestroyGLXPbufferSGIX,
+     glXGetSelectedEventSGIX, glXQueryGLXPbufferSGIX, glXSelectEventSGIX */
+  { " GLX_SGIX_pbuffer ", ? },
+#endif
+
+  /* glXBindSwapBarrierSGIX, glXQueryMaxSwapBarriersSGIX */
+  { " GLX_SGIX_swap_barrier ", DSPL },
+
+  /* glXJoinSwapGroupSGIX */
+  { " GLX_SGIX_swap_group ", DSPL },
+
+#if 0
+  /* glXBindChannelToWindowSGIX, glXChannelRectSGIX,
+     glXChannelRectSyncSGIX, glXQueryChannelDeltasSGIX,
+     glXQueryChannelRectSGIX */
+  { " GLX_SGIX_video_resize ", ? },
+#endif
+
+#if 0
+  { " GLX_SGIX_video_source ", ? },
+#endif
+
+  { " GLX_SGIX_visual_select_group ", ACCL },
+
+  /* glXCushionSGI */
+  { " GLX_SGI_cushion ", DSPL },
+
+  /* glXGetCurrentReadDrawableSGI, glXMakeCurrentReadSGI */
+  { " GLX_SGI_make_current_read ", NONE },
+
+  /* glXSwapIntervalSGI */
+  { " GLX_SGI_swap_control ", DSPL },
+
+  /* glXGetVideoSyncSGI, glXWaitVideoSyncSGI */
+  { " GLX_SGI_video_sync ", DSPL },
+
+#if 0
+  /* glXGetTransparentIndexSUN */
+  { " GLX_SUN_get_transparent_index ", ? },
+#endif
+};
+
+
+static
+void
+bitmap_set(unsigned char *bitmap, size_t i)
+{
+  bitmap[i / 8] |= 1 << (i % 8);
+}
+
+
+static
+int
+bitmap_get(const unsigned char *bitmap, size_t i)
+{
+  return (bitmap[i / 8] >> (i % 8)) & 1;
+}
+
+
+static
+void
+set_unsupported(unsigned char *bitmap, const char *extensions,
+                enum extension_requires set)
+{
+  size_t len = strlen(extensions);
+  char *ext = MEM(malloc(1 + len + 1 + 1));
+  ext[0] = ' ';
+  strcpy(ext + 1, extensions);
+  ext[len + 1] = ' ';
+  ext[len + 2] = '\0';
+
+  for (size_t i = 0;
+       i < sizeof(extension_supported) / sizeof(*extension_supported);
+       ++i)
+    {
+      if (! bitmap_get(bitmap, i)
+          && (extension_supported[i].requires & set)
+          && ! strstr(ext, extension_supported[i].name))
+        bitmap_set(bitmap, i);
+    }
+
+  free(ext);
+}
+
+
 static char *extensions = NULL;
 
 
 REDEF(const char *,
 glXQueryExtensionsString, Display *, dpy, int, screen)
 {
-  UNUSED(dpy && screen);
-
-  static const char *const unsupported[] = {
-    "EXT_import_context", /* glXGetContextIDEXT
-                             glXImportContextEXT
-                             glXFreeContextEXT */
-  };
-
   const char *v = __atomic_load_n(&extensions, __ATOMIC_ACQUIRE);
   if (unlikely(! v))
     {
-      char *nv = (char *) ACCL(glXQueryExtensionsString,
-                               accl_dpy, DefaultScreen(accl_dpy));
-      nv = MEM(strdup(nv));
-      for (size_t i = 0; i < sizeof(unsupported) / sizeof(*unsupported); ++i)
+      size_t bits = sizeof(extension_supported) / sizeof(*extension_supported);
+      unsigned char *bitmap = MEM(calloc(1, (bits + 7) / 8));
+      set_unsupported(bitmap, ACCL(glXQueryExtensionsString,
+                                   accl_dpy, DefaultScreen(accl_dpy)), ACCL);
+      set_unsupported(bitmap, DSPL(glXQueryExtensionsString,
+                                   dpy, screen), DSPL);
+
+      char *nv = MEM(malloc(1));
+      size_t len = 0;
+      for (size_t i = 0;
+           i < sizeof(extension_supported) / sizeof(*extension_supported);
+           ++i)
         {
-          char *match = strstr(nv, unsupported[i]);
-          if (match)
+          if (! bitmap_get(bitmap, i))
             {
-              size_t len = strlen(unsupported[i]);
-              if (nv < match)
-                {
-                  if (*--match != ' ')
-                    continue;
-                  else
-                    ++len;
-                }
-              if (match[len] == ' ')
-                {
-                  if (match[0] != ' ')
-                    ++len;
-                }
-              else if (match[len] != '\0')
-                {
-                  continue;
-                }
-              memmove(match, match + len, strlen(match + len) + 1);
+              size_t l = strlen(extension_supported[i].name + 1);
+              nv = MEM(realloc(nv, len + l));
+              memcpy(nv + len, extension_supported[i].name + 1, l);
+              len += l;
             }
         }
+      nv[len] = '\0';
+
+      free(bitmap);
+
       if (__atomic_compare_exchange_n(&extensions, &v, nv, 0,
                                       __ATOMIC_RELEASE, __ATOMIC_ACQUIRE))
         v = nv;
@@ -1034,6 +1282,9 @@ glXWaitGL, void)
 }
 
 
+IMPORT(glXCopyImageSubDataNV);
+
+
 ACCL_DPY(void,
 glXCopyContext, Display *, dpy, GLXContext, src, GLXContext, dst,
       unsigned long, mask);
@@ -1057,6 +1308,31 @@ glXQueryContextInfoEXT, Display *, dpy, GLXContext, ctx,
       int, attribute, int *, value);
 
 
+ACCL_DPY(Bool,
+glXJoinSwapGroupNV, Display *, dpy, GLXDrawable, drawable, GLuint, group);
+
+
+ACCL_DPY(Bool,
+glXBindSwapBarrierNV, Display *, dpy, GLuint, group, GLuint, barrier);
+
+
+ACCL_DPY(Bool,
+glXQuerySwapGroupNV, Display *, dpy, GLXDrawable,
+         drawable, GLuint *, group, GLuint *, barrier);
+
+ACCL_DPY(Bool,
+glXQueryMaxSwapGroupsNV, Display *, dpy, int, screen,
+         GLuint *, maxGroups, GLuint *, maxBarriers);
+
+
+ACCL_DPY(Bool,
+glXQueryFrameCountNV, Display *, dpy, int, screen, GLuint *, count);
+
+
+ACCL_DPY(Bool,
+glXResetFrameCountNV, Display *, dpy, int, screen);
+
+
 DSPL_DPY(void,
 glXGetSelectedEvent, Display *, dpy, GLXDrawable, draw,
          unsigned long *, event_mask);
@@ -1073,6 +1349,47 @@ glXChooseVisual, Display *, dpy, int, screen, int *, attribList);
 
 DSPL_DPY(void,
 glXWaitX, void);
+
+
+DSPL_DPY(void,
+glXSwapIntervalEXT, Display *, dpy, GLXDrawable, drawable, int, interval);
+
+
+DSPL_DPY(void,
+glXCopySubBufferMESA, Display *, dpy, GLXDrawable, drawable,
+         int, x, int, y, int, width, int, height);
+
+
+DSPL_DPY(Bool,
+glXReleaseBuffersMESA, Display *, dpy, GLXDrawable, draw);
+
+
+DSPL_DPY(void,
+BindSwapBarrierSGIX, Display *, dpy, GLXDrawable, drawable, int, barrier);
+
+
+DSPL_DPY(Bool,
+QueryMaxSwapBarriersSGIX, Display *, dpy, int, screen, int *, max);
+
+
+DSPL_DPY(void,
+JoinSwapGroupSGIX, Display *, dpy, GLXDrawable, drawable, GLXDrawable, member);
+
+
+DSPL_DPY(void,
+glXCushionSGI, Display *, dpy, Window, window, float, cushion);
+
+
+DSPL_DPY(int,
+glXSwapIntervalSGI, int, interval);
+
+
+DSPL_DPY(int,
+glXGetVideoSyncSGI, uint *, count);
+
+
+DSPL_DPY(int,
+glXWaitVideoSyncSGI, int, divisor, int, remainder, unsigned int *, count);
 
 
 struct fnt_info_key
