@@ -1121,7 +1121,7 @@ static const struct extension_info extension_supported[] = {
 };
 
 
-static
+static inline
 void
 bitmap_set(unsigned char *bitmap, size_t i)
 {
@@ -1129,7 +1129,7 @@ bitmap_set(unsigned char *bitmap, size_t i)
 }
 
 
-static
+static inline
 int
 bitmap_get(const unsigned char *bitmap, size_t i)
 {
