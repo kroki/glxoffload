@@ -33,9 +33,7 @@
 
 
 #define UNUSED(v)                               \
-  do                                            \
-    (void) (v);                                 \
-  while (0)
+  (void) (v)
 
 
 unsigned int
