@@ -877,8 +877,8 @@ glXSwapBuffers, Display *, dpy, GLXDrawable, draw)
          0,  0,     1,  0,     0,  1,
          1,  1,     0,  1,     1,  0
       };
-      DSPL(glVertexPointer, 2, GL_FLOAT, 2 * sizeof(GLfloat), vrect);
-      DSPL(glTexCoordPointer, 2, GL_FLOAT, 2 * sizeof(GLfloat), trect);
+      DSPL(glVertexPointer, 2, GL_FLOAT, 0, vrect);
+      DSPL(glTexCoordPointer, 2, GL_FLOAT, 0, trect);
       DSPL(glEnableClientState, GL_VERTEX_ARRAY);
       DSPL(glEnableClientState, GL_TEXTURE_COORD_ARRAY);
       DSPL(glEnable, GL_TEXTURE_2D);
