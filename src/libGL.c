@@ -330,8 +330,8 @@ _kroki_glxoffload_get_proc_address(const char *name)
   if (likely(name))
     {
       extern __attribute__((__visibility__("hidden")))
-        const struct redef_func __start__kroki_glxoffload,
-                                __stop__kroki_glxoffload;
+        struct redef_func __start__kroki_glxoffload,
+                          __stop__kroki_glxoffload;
 
       for (const struct redef_func *af = &__start__kroki_glxoffload;
            af != &__stop__kroki_glxoffload; ++af)
@@ -1559,6 +1559,26 @@ static __attribute__((__constructor__(1002)))
 void
 init2(void)
 {
+  /*
+    Some functions may only be accessible by glXGetProcAddress().
+    Let's fill addresses of those.
+  */
+  extern __attribute__((__visibility__("hidden")))
+    struct redef_func __start__kroki_glxoffload,
+                      __stop__kroki_glxoffload;
+  for (struct redef_func *af = &__start__kroki_glxoffload;
+       af != &__stop__kroki_glxoffload; ++af)
+    {
+      if (! af->accl_fp)
+        {
+          af->accl_fp = ACCL(glXGetProcAddress, (GLubyte *) af->name);
+          if (! af->addr_fp)
+            af->addr_fp = af->accl_fp;
+        }
+      if (! af->dspl_fp)
+        af->dspl_fp = DSPL(glXGetProcAddress, (GLubyte *) af->name);
+    }
+
   /*
     Trigger '_kroki_glxoffload_get_proc_address' symbol lookup after
     initializing redirection table (see kroki-glxoffload-audit.c).
