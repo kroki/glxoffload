@@ -174,7 +174,7 @@ struct drw_info
   GLsizei height;
   GLuint accl_copy_pbuffers[2];
   GLuint dspl_texture;
-  int swap_odd;
+  unsigned int frame_no;
 };
 
 struct ctx_info
@@ -251,7 +251,7 @@ drw_info_create(Display *dpy, GLXDrawable drw, GLXFBConfig config)
   res->accl_copy_pbuffers[0] = None;
   res->accl_copy_pbuffers[1] = None;
   res->dspl_texture = None;
-  res->swap_odd = 0;
+  res->frame_no = 0;
   pthread_mutex_lock(&drw_infos_mutex);
   CHECK(cuckoo_hash_insert(&drw_infos, &res->key, sizeof(res->key), res),
         != NULL, die, "%m");
@@ -904,13 +904,13 @@ glXSwapBuffers, Display *, dpy, GLXDrawable, draw)
   glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
   glPixelStorei(GL_PACK_SKIP_ROWS, 0);
 
-  glBindBuffer(GL_PIXEL_PACK_BUFFER, di->accl_copy_pbuffers[di->swap_odd]);
+  glBindBuffer(GL_PIXEL_PACK_BUFFER, di->accl_copy_pbuffers[di->frame_no % 2]);
   glReadPixels(0, 0, di->width, di->height,
                GL_RGB, GL_UNSIGNED_BYTE, (GLvoid *) 0);
 
-  di->swap_odd ^= 1;
+  ++di->frame_no;
 
-  glBindBuffer(GL_PIXEL_PACK_BUFFER, di->accl_copy_pbuffers[di->swap_odd]);
+  glBindBuffer(GL_PIXEL_PACK_BUFFER, di->accl_copy_pbuffers[di->frame_no % 2]);
   void *data = glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
   DSPL(glTexSubImage2D, GL_TEXTURE_2D, 0, 0, 0, di->width, di->height,
        GL_RGB, GL_UNSIGNED_BYTE, data);
