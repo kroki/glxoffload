@@ -49,57 +49,29 @@ version() {
 }
 
 
+eval set -- $(getopt -o +b:adhv -l bb-sock:,audit,verbose,help,version -- "$@")
 while [ $# -ge 1 ]; do
     case "$1" in
-        -b|--b|--bb|--bb-|--bb-s|--bb-so|--bb-soc|--bb-sock)
-            if [ $# -lt 2 ]; then
-                echo "Option requires argument: $1" >&2
-                usage >&2
-                exit 1
-            fi
+        -b|--bb-sock)
             shift
             BBSOCK=$1
             ;;
-        -b?*)
-            BBSOCK=${1:2}
-            ;;
-        --b=*|--bb=*|--bb-=*|--bb-s=*|--bb-so=*|--bb-soc=*|--bb-sock=*)
-            BBSOCK=${1#*=}
-            if [ x"$BBSOCK" = x"" ]; then
-                echo "Option requires argument: $1" >&2
-                usage >&2
-                exit 1
-            fi
-            ;;
-        -a|--a|--au|--aud|--audi|--audit)
+        -a|--audit)
             AUDIT=kroki-glxoffload-audit.so:$AUDIT
             ;;
-        -d|--verb|--verbo|--verbos|--verbose)
+        -d|--verbose)
             VERBOSE=1
             ;;
-        -h|--h|--he|--hel|--help)
+        -h|--help)
             usage
             exit 0
             ;;
-        -v|--vers|--versi|--versio|--version)
+        -v|--version)
             version
             exit 0
             ;;
         --)
             shift
-            break
-            ;;
-        --v|--ve|--ver)
-            echo "Ambiguous option: $1" >&2
-            usage >&2
-            exit 1
-            ;;
-        -*)
-            echo "Unknown option: $1" >&2
-            usage >&2
-            exit 1
-            ;;
-        *)
             break
             ;;
     esac
