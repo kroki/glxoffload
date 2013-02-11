@@ -31,6 +31,7 @@
 #include <dlfcn.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 
 #ifdef NEED_USCORE
@@ -156,6 +157,12 @@ struct redef_func
 
 static void *dspl_libgl = NULL;
 static Display *accl_dpy = NULL;
+static int verbose = 0;
+static enum { AUTO, RGB, BGRA } copy_method = AUTO;
+
+
+#define COPY_CONFIDENCE_MASK_ZEROES  4
+#define COPY_CONFIDENCE_MASK_DIVIDER  (1 << COPY_CONFIDENCE_MASK_ZEROES)
 
 
 struct drw_info_key
@@ -175,6 +182,9 @@ struct drw_info
   GLuint accl_copy_pbuffers[2];
   GLuint dspl_texture;
   unsigned int frame_no;
+  int copy_nsec;
+  unsigned short copy_confidence_mask;
+  bool copy_rgb;
 };
 
 struct ctx_info
@@ -252,6 +262,9 @@ drw_info_create(Display *dpy, GLXDrawable drw, GLXFBConfig config)
   res->accl_copy_pbuffers[1] = None;
   res->dspl_texture = None;
   res->frame_no = 0;
+  res->copy_nsec = 0;
+  res->copy_confidence_mask = 0;
+  res->copy_rgb = (copy_method == RGB);
   pthread_mutex_lock(&drw_infos_mutex);
   CHECK(cuckoo_hash_insert(&drw_infos, &res->key, sizeof(res->key), res),
         != NULL, die, "%m");
@@ -802,6 +815,29 @@ IMPORT(glTexSubImage2D);
 IMPORT(glDrawArrays);
 
 
+static
+void
+process_frame(struct drw_info *di, bool read_rgb, bool draw_rgb)
+{
+  glBindBuffer(GL_PIXEL_PACK_BUFFER, di->accl_copy_pbuffers[di->frame_no % 2]);
+  glReadPixels(0, 0, di->width, di->height,
+               read_rgb ? GL_RGB : GL_BGRA,
+               read_rgb ? GL_UNSIGNED_BYTE : GL_UNSIGNED_INT_8_8_8_8_REV,
+               (GLvoid *) 0);
+
+  ++di->frame_no;
+
+  glBindBuffer(GL_PIXEL_PACK_BUFFER, di->accl_copy_pbuffers[di->frame_no % 2]);
+  void *data = glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
+  DSPL(glTexSubImage2D, GL_TEXTURE_2D, 0, 0, 0, di->width, di->height,
+       draw_rgb ? GL_RGB : GL_BGRA,
+       draw_rgb ? GL_UNSIGNED_BYTE : GL_UNSIGNED_INT_8_8_8_8_REV, data);
+  glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+
+  DSPL(glDrawArrays, GL_TRIANGLES, 0, 6);
+}
+
+
 REDEF(void,
 glXSwapBuffers, Display *, dpy, GLXDrawable, draw)
 {
@@ -816,8 +852,10 @@ glXSwapBuffers, Display *, dpy, GLXDrawable, draw)
   glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &save_pixel_pack_buffer);
 
   GLsizei width, height;
-  get_dimensions(dpy, draw, &width, &height);
-  if (unlikely(di->width != width || di->height != height))
+  if (di->frame_no % COPY_CONFIDENCE_MASK_DIVIDER == 0)
+    get_dimensions(dpy, draw, &width, &height);
+  if (di->frame_no % COPY_CONFIDENCE_MASK_DIVIDER == 0
+      && unlikely(di->width != width || di->height != height))
     {
       di->width = width;
       di->height = height;
@@ -849,8 +887,7 @@ glXSwapBuffers, Display *, dpy, GLXDrawable, draw)
 
   if (unlikely(! di->dspl_texture))
     {
-      GLsizei row_size = (di->width * 3 + 7) & ~7;
-      GLsizei size = row_size * di->height;
+      GLsizei size = di->width * di->height * 4;
 
       glGenBuffers(2, di->accl_copy_pbuffers);
       glBindBuffer(GL_PIXEL_PACK_BUFFER, di->accl_copy_pbuffers[0]);
@@ -861,11 +898,11 @@ glXSwapBuffers, Display *, dpy, GLXDrawable, draw)
       DSPL(glDisable, GL_DEPTH_TEST);
       DSPL(glDepthMask, GL_FALSE);
 
-      DSPL(glPixelStorei, GL_UNPACK_ALIGNMENT, 8);
+      DSPL(glPixelStorei, GL_UNPACK_ALIGNMENT, 4);
 
       DSPL(glGenTextures, 1, &di->dspl_texture);
       DSPL(glBindTexture, GL_TEXTURE_2D, di->dspl_texture);
-      DSPL(glTexStorage2D, GL_TEXTURE_2D, 1, GL_RGB8, di->width, di->height);
+      DSPL(glTexStorage2D, GL_TEXTURE_2D, 1, GL_RGBA8, di->width, di->height);
       DSPL(glTexParameteri, GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
       DSPL(glTexParameteri, GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
@@ -899,24 +936,135 @@ glXSwapBuffers, Display *, dpy, GLXDrawable, draw)
   if ((GLuint) save_read_buffer != GL_FRONT)
     glReadBuffer(GL_FRONT);
   glPushClientAttrib(GL_CLIENT_PIXEL_STORE_BIT);
-  glPixelStorei(GL_PACK_ALIGNMENT, 8);
+  glPixelStorei(GL_PACK_ALIGNMENT, 4);
   glPixelStorei(GL_PACK_SWAP_BYTES, GL_FALSE);
   glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
   glPixelStorei(GL_PACK_SKIP_ROWS, 0);
 
-  glBindBuffer(GL_PIXEL_PACK_BUFFER, di->accl_copy_pbuffers[di->frame_no % 2]);
-  glReadPixels(0, 0, di->width, di->height,
-               GL_RGB, GL_UNSIGNED_BYTE, (GLvoid *) 0);
+  if (copy_method != AUTO || likely(di->frame_no & di->copy_confidence_mask))
+    {
+      process_frame(di, di->copy_rgb, di->copy_rgb);
+    }
+  else
+    {
+      /*
+        Here we re-evaluate the performance of both copy methods.
+        COPY_CONFIDENCE_MASK_DIVIDER is a power of two and is at least
+        four.  We will get to this branch for a
+        COPY_CONFIDENCE_MASK_DIVIDER consecutive frames because
+        di->copy_confidence_mask has log(COPY_CONFIDENCE_MASK_DIVIDER)
+        lower zero bits.  The algorithm consists of four phases:
 
-  ++di->frame_no;
+        1. On the first pass we use current copy method for both
+           reading of the current frame and drawing of the previous
+           frame.  On this pass we store execution time multiplied by
+           (COPY_CONFIDENCE_MASK_DIVIDER - 3) to di->copy_nsec.
 
-  glBindBuffer(GL_PIXEL_PACK_BUFFER, di->accl_copy_pbuffers[di->frame_no % 2]);
-  void *data = glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
-  DSPL(glTexSubImage2D, GL_TEXTURE_2D, 0, 0, 0, di->width, di->height,
-       GL_RGB, GL_UNSIGNED_BYTE, data);
-  glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+        2. On the second pass we use other method for reading, while
+           still current method for drawing because we draw the frame
+           that we read on the previous pass.  We also swap current
+           and other methods for the next phase.
 
-  DSPL(glDrawArrays, GL_TRIANGLES, 0, 6);
+        3. Third phase consists of (COPY_CONFIDENCE_MASK_DIVIDER - 3)
+           passes.  On each pass we use current (previously other)
+           method for both reading and drawing and each time subtract
+           execution time from di->copy_nsec.
+
+        4. On the last pass we evaluate the value of di->copy_nsec.
+           Negative or zero means that other method wasn't any faster,
+           so we increase confidence value (set higher bit in
+           di->copy_confidence_mask which will result in twice less
+           frequent re-evaluation) and restore copy method back to
+           what it was before re-evaluation.
+
+           On the other hand positive di->copy_nsec means that the
+           other method was faster.  In this case we shift down the
+           confidence vale if it is non-zero (thus scheduling next
+           re-evaluation twice sooner) but again restore the original
+           copy method.  Alternatively, when di->copy_confidence_mask
+           has already dropped to zero (no confidence) we do not
+           restore previous copy method and continue to use the other
+           one (leaving it as current in di->copy_rgb flag).
+
+         Note that we measure time on phase 1 only once, but several
+         times on phase 3.  This is because the original copy method
+         codepath is hot and we have confidence in it thus time
+         measurement will be quite precise and we also can tolerate
+         the error.  On the other hand the other copy method codepath
+         is cold so have to warm it up.
+
+         Be aware that automatic copy method selection is not perfect:
+         if CPU uses on-demand frequency scaling than a less efficient
+         method may trigger higher CPU speed and thus will appear to
+         perform better during re-evaluation, though frequency
+         switching latencies and other CPU stalls will still result in
+         a lower FPS rate on a long run.
+      */
+      bool read_rgb = di->copy_rgb;
+      bool draw_rgb = di->copy_rgb;
+      if (di->frame_no % COPY_CONFIDENCE_MASK_DIVIDER == 1)
+        {
+          read_rgb = ! read_rgb;
+          di->copy_rgb = ! di->copy_rgb;
+        }
+      else if (di->frame_no % COPY_CONFIDENCE_MASK_DIVIDER
+               == COPY_CONFIDENCE_MASK_DIVIDER - 1)
+        {
+          if (likely(di->copy_nsec <= 0))
+            {
+              /*
+                Set re-evaluation rate to no less than 0.78% (1/2^(6+1)).
+              */
+              if (di->copy_confidence_mask
+                  < (COPY_CONFIDENCE_MASK_DIVIDER << 6))
+                {
+                  di->copy_confidence_mask <<= 1;
+                  di->copy_confidence_mask += COPY_CONFIDENCE_MASK_DIVIDER;
+                }
+              di->copy_rgb = ! di->copy_rgb;
+              read_rgb = ! read_rgb;
+            }
+          else if (likely(di->copy_confidence_mask))
+            {
+              di->copy_confidence_mask -= COPY_CONFIDENCE_MASK_DIVIDER;
+              di->copy_confidence_mask >>= 1;
+              di->copy_rgb = ! di->copy_rgb;
+              read_rgb = ! read_rgb;
+            }
+          else
+            {
+              if (verbose)
+                {
+                  warn(PACKAGE_NAME ": since frame %u (%ux%u)"
+                       " using %s copy method", di->frame_no + 1,
+                       (unsigned int) di->width, (unsigned int) di->height,
+                       (di->copy_rgb ? "RGB" : "BGRA"));
+                }
+            }
+        }
+
+      struct timespec beg, end;
+      SYS(clock_gettime(CLOCK_MONOTONIC, &beg));
+      process_frame(di, read_rgb, draw_rgb);
+      SYS(clock_gettime(CLOCK_MONOTONIC, &end));
+      /*
+        We can tolerate timing error anyway so let's assume that
+        glTexSubImage2D() always takes less then a second (it should
+        be that fast anyway).
+      */
+      int nsec = end.tv_nsec - beg.tv_nsec;
+      if (nsec < 0)
+        nsec = -nsec;
+
+      /*
+        Note that process_frame() has incremented di->frame_no.
+      */
+      if (di->frame_no % COPY_CONFIDENCE_MASK_DIVIDER == 1)
+        di->copy_nsec = (COPY_CONFIDENCE_MASK_DIVIDER - 3) * nsec;
+      else if (di->frame_no % COPY_CONFIDENCE_MASK_DIVIDER > 2)
+        di->copy_nsec -= nsec;
+    }
+
   DSPL(glXSwapBuffers, dpy, draw);
 
   glPopClientAttrib();
@@ -1534,6 +1682,51 @@ glXUseXFont, Font, font, int, first, int, count, int, listBase)
 }
 
 
+static
+void
+process_options(void)
+{
+  char *options = CHECK(getenv("KROKI_GLXOFFLOAD_OPTIONS"),
+                        == NULL, die, "not set");
+  char key;
+  char val[22];
+  int consumed;
+  while (sscanf(options, " %c=%21s%n", &key, val, &consumed) >= 2)
+    {
+      switch (key)
+        {
+        case 'c':
+          {
+            if (strcmp(val, "RGB") == 0)
+              copy_method = RGB;
+            else if (strcmp(val, "BGRA") == 0)
+              copy_method = BGRA;
+            else if (strcmp(val, "AUTO") == 0)
+              copy_method = AUTO;
+            else
+              die("unknown copy method c=%s", val);
+          }
+          break;
+
+        case 'd':
+          {
+            char *end;
+            long res = strtol(val, &end, 10);
+            if (*end != '\0' || res < 0 || res > 1)
+              die("wrong verbose level d=%s", val);
+            verbose = res;
+          }
+          break;
+
+        default:
+          die("unknown key=value '%c=%s'", key, val);
+        }
+
+      options += consumed;
+    }
+}
+
+
 static __attribute__((__constructor__(1000)))
 void
 init0(void)
@@ -1552,6 +1745,8 @@ init0(void)
 
   accl_dpy = MEM(XOpenDisplay(getenv("KROKI_GLXOFFLOAD_DPY")),
                  " for %s", getenv("KROKI_GLXOFFLOAD_DPY"));
+
+  process_options();
 }
 
 

@@ -64,6 +64,12 @@ AC_CHECK_HEADER([GL/glxext.h], [], [AC_MSG_ERROR([GL/glxext.h is required])],
 
 save_LIBS=$LIBS
 
+LIBADD_CLOCK_GETTIME=
+AC_SEARCH_LIBS([clock_gettime], [rt],
+               [LIBADD_CLOCK_GETTIME=$ac_cv_search_clock_gettime],
+               [AC_MSG_ERROR([libkroki-glxoffload requires clock_gettime()])])
+AC_SUBST([LIBADD_CLOCK_GETTIME])
+
 LIBADD_DLOPEN=
 AC_SEARCH_LIBS([dlopen], [dl], [LIBADD_DLOPEN=$ac_cv_search_dlopen],
                [AC_MSG_ERROR([libkroki-glxoffload requires dlopen()])])

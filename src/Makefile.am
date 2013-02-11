@@ -26,5 +26,6 @@ libGL_la_LDFLAGS =				\
 
 libGL_la_LIBADD =				\
 	stub/libkroki-glxoffload.la		\
+	$(LIBADD_CLOCK_GETTIME)			\
 	$(LIBADD_DLOPEN)			\
 	$(LIBADD_CUCKOO_HASH)

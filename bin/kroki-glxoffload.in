@@ -28,6 +28,7 @@ BBSOCK=/var/run/bumblebee.socket
 LIBGL=libGL.so.1
 PRELOAD=libpthread.so.0:libglapi.so.0
 AUDIT=${LD_AUDIT:-}
+COPY_METHOD=AUTO
 VERBOSE=0
 
 
@@ -36,6 +37,7 @@ usage() {
     echo
     echo "Options are:"
     echo "  -b, --bb-sock SOCKET    Bumblebee socket (default $BBSOCK)"
+    echo "  -c, --copy-method METH  Copy method (one of AUTO, RGB, BGRA)"
     echo "  -a, --audit             Report unhandled GLX calls (can affect FPS)"
     echo "  -d, --verbose           Verbose output"
     echo "  -h, --help              Print this message and exit"
@@ -49,12 +51,26 @@ version() {
 }
 
 
-eval set -- $(getopt -o +b:adhv -l bb-sock:,audit,verbose,help,version -- "$@")
+eval set -- $(getopt -o +b:c:adhv \
+    -l bb-sock:,copy-method:,audit,verbose,help,version -- "$@")
 while [ $# -ge 1 ]; do
     case "$1" in
         -b|--bb-sock)
             shift
             BBSOCK=$1
+            ;;
+        -c|--copy-method)
+            shift
+            COPY_METHOD=$1
+            case "$COPY_METHOD" in
+                AUTO|RGB|BGRA)
+                    ;;
+                *)
+                    echo "Unknown copy method $COPY_METHOD" >&2
+                    usage >&2
+                    exit 1
+                    ;;
+            esac
             ;;
         -a|--audit)
             AUDIT=kroki-glxoffload-audit.so:$AUDIT
@@ -128,6 +144,7 @@ if [ $VERBOSE -ne 0 ]; then
     echo LD_AUDIT="$AUDIT"
     echo KROKI_GLXOFFLOAD_DPY="$DPY"
     echo KROKI_GLXOFFLOAD_DSPL_LIBGL="$DSPL_LIBGL"
+    echo KROKI_GLXOFFLOAD_OPTIONS="d=$VERBOSE c=$COPY_METHOD"
     echo LD_LIBRARY_PATH="$LPATH:${LD_LIBRARY_PATH:-}"
     echo LD_PRELOAD="$LIBGL:$PRELOAD:${LD_PRELOAD:-}"
 fi
@@ -135,6 +152,7 @@ fi
 LD_AUDIT="$AUDIT" \
 KROKI_GLXOFFLOAD_DPY="$DPY" \
 KROKI_GLXOFFLOAD_DSPL_LIBGL="$DSPL_LIBGL" \
+KROKI_GLXOFFLOAD_OPTIONS="d=$VERBOSE c=$COPY_METHOD" \
 LD_LIBRARY_PATH="$LPATH:${LD_LIBRARY_PATH:-}" \
 LD_PRELOAD="$LIBGL:$PRELOAD:${LD_PRELOAD:-}" \
 "$@"

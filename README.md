@@ -61,3 +61,34 @@ the following packages have to be installed:
     $ kroki-glxoffload PROGRAM
 
 (requires `socat` utility and a running `bumblebeed` instance).
+
+
+## Selecting pixel copy method
+
+Prior to version 0.7 kroki/glxoffload copied pixel buffers in RGB
+format instead of conventional BGRA format because this produced a
+slightly higher FPS rate with high resolution on my hardware (Intel
+Core i7-2670QM @2.2GHz, NVIDIA GeForce GT 555M/PCIe/SSE2, screen
+1920x1080; apparently copying 25% less of data with high resolution
+beats the advantage of SIMD-enabled `memcpy()`).  However with small
+resolutions (like default 300x300 for glxgears) performance was poor
+(about 40% lower FPS rate than with BGRA).  Starting with version 0.7
+`kroki-glxoffload` wrapper implements `--copy-method` command line
+option.  You may select between `RGB` and `BGRA`, or use `AUTO` (which
+is the default).  In the latter case the library will periodically
+re-evaluate performance of both methods and dynamically switch to a
+faster one.  Note however that automatic method selection is not
+perfect: if CPU uses on-demand frequency scaling than a less efficient
+method may trigger higher CPU speed and thus will appear to perform
+better during such re-evaluation, though frequency switching latencies
+and other CPU stalls will still result in a lower FPS rate on a long
+run.  On the other hand, unless you are doing benchmarking and disable
+sync-to-vblank (with `vblank_mode=0` environment variable) the default
+`--copy-method=AUTO` should be an optimal setting in all cases.
+`--verbose` will output a message on every copy method switch.  For
+benchmarking you may disable CPU frequency scaling with
+
+    $ sudo sh -c '
+        for f in echo /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+          echo performance > "$f";
+        done'
