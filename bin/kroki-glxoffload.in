@@ -130,10 +130,26 @@ DSPL_LIBGL=$(findlib "$LIBGL")
 ACCL_LIBGL=$(LD_LIBRARY_PATH="$LPATH" findlib "$LIBGL")
 
 
-TMPLINKDIR=${TMPDIR:-/tmp}/$SCRIPT.$UID.$$
+# The code below avoids security hole provided that the user doesn't
+# set $TMPDIR to the untrusted location and has a sane umask (no write
+# permission for others and possibly for group if groups are not
+# trusted): given that $TDIR is trusted, 'mkdir "$TMPLINKDIR"' will
+# either fail (and terminate the script because of 'set -o errexit'
+# above) or create a new directory that we own.  Then 'ln -s' will
+# create a link that we also own ("own" in a sense that both the link
+# and all parent directories are trusted so that no unprivileged user
+# can perform any malicious renames; privileged malicious user could
+# read/write throughout your ~/ in any case ;)).
+#
+# Really paranoid users may set TMPDIR to ~/.kroki-glxoffload, though
+# modern Linux distributions begin to utilize per-user /tmp namespaces
+# anyway.
+TDIR=${TMPDIR:-/tmp}
+TMPLINKDIR=$TDIR/$SCRIPT.$UID.$$
 trap 'rm -rf "$TMPLINKDIR"' EXIT
-mkdir -p "$TMPLINKDIR"
-rm -f "$TMPLINKDIR"/libkroki-glxoffload.so.0
+mkdir -p "$TDIR"
+rm -rf "$TMPLINKDIR"
+mkdir "$TMPLINKDIR"
 ln -s "$ACCL_LIBGL" "$TMPLINKDIR"/libkroki-glxoffload.so.0
 
 exec_prefix=$(dirname "$0")/..
