@@ -986,19 +986,19 @@ glXSwapBuffers, Display *, dpy, GLXDrawable, draw)
            restore previous copy method and continue to use the other
            one (leaving it as current in di->copy_rgb flag).
 
-         Note that we measure time on phase 1 only once, but several
-         times on phase 3.  This is because the original copy method
-         codepath is hot and we have confidence in it thus time
-         measurement will be quite precise and we also can tolerate
-         the error.  On the other hand the other copy method codepath
-         is cold so have to warm it up.
+        Note that we measure time on phase 1 only once, but several
+        times on phase 3.  This is because the original copy method
+        codepath is hot and we have confidence in it thus time
+        measurement will be quite precise and we also can tolerate the
+        error.  On the other hand the other copy method codepath is
+        cold so we have to warm it up.
 
-         Be aware that automatic copy method selection is not perfect:
-         if CPU uses on-demand frequency scaling than a less efficient
-         method may trigger higher CPU speed and thus will appear to
-         perform better during re-evaluation, though frequency
-         switching latencies and other CPU stalls will still result in
-         a lower FPS rate on a long run.
+        Be aware that automatic copy method selection is not perfect:
+        if CPU uses on-demand frequency scaling than a less efficient
+        method may trigger higher CPU speed and thus will appear to
+        perform better during re-evaluation, though frequency
+        switching latencies and other CPU stalls will still result in
+        a lower FPS rate on a long run.
       */
       bool read_rgb = di->copy_rgb;
       bool draw_rgb = di->copy_rgb;
