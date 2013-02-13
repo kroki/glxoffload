@@ -17,4 +17,13 @@
   along with kroki/glxoffload.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// This file is intentionally left blank :).
+/*
+  This file is intentionally left blank.  To provide natural access to
+  OpenGL symbols (both direct and with dlsym()) from our libGL we'd
+  like to link with accelerated libGL.  However it's not possible
+  because both libraries have the same soname.  So we link with
+  libkroki-glxoffload instead in order to add a proper DT_NEEDED
+  record to our libGL ELF object and at runtime instead of
+  libkroki-glxoffload we substitute a symlink pointing to the
+  accelerated libGL.
+*/
