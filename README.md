@@ -12,8 +12,11 @@ independent code base with a number of improvements:
   accelerated libGL are immediately available.
 * Whitelists supported GLX extensions (see the output of
   `kroki-glxoffload glxinfo`).
-* Thread-safe: no additional threads are created, rendering is done
-  synchronously in the calling thread.
+* Thread-safe: builds on natural parallelism between CPU and GPU
+  without creating any application threads, drawing is performed
+  synchronously in the calling thread, doesn't have to rely on proper
+  use of `XInitThreads()`.  Uses proper mutex locking for its own
+  shared data to allow calls from different threads.
 * Slightly faster (higher FPS rate) than Primus (while also consuming
   less CPU), which itself is a lot faster than [VirtualGL]
   (http://www.virtualgl.org/) (to be fair it should be noted that
