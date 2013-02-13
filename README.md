@@ -17,6 +17,10 @@ independent code base with a number of improvements:
   (http://www.virtualgl.org/) (to be fair it should be noted that
   VirtualGL has different design goals; neither Primus nor
   Kroki/glxoffload support connection to X server over the network).
+* Significantly faster (FPS-wise) than Primus when drawing to several
+  windows/screens from a single thread (several calls to
+  `glXMakeCurrent()` per frame do not cause re-init and pipeline
+  reset).
 * Supports `glXUseXFont()` out of the box.
 
 
