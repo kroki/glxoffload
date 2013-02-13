@@ -64,6 +64,14 @@ the following packages have to be installed:
   6. `sudo make install`
   7. `cd ..`
 
+All four packages support creation of RPMs (`make package` for the
+first two and `make rpm` for the last two) provided that you have an
+`rpmbuild` utility.  However RPM generation in CMake is incompatible
+with recent RPM versions (see this [bug report]
+(http://www.cmake.org/Bug/bug_relationship_graph.php?bug_id=13854)) so
+you may not be able to install the first two packages unless you use
+`rpm --install --force`.
+
 
 ## Running
 
