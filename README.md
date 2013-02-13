@@ -10,6 +10,8 @@ independent code base with a number of improvements:
 * Completely transparent to OpenGL calls.  No commit to a particular
   function list is required, all extensions exported by the
   accelerated libGL are immediately available.
+* Whitelists supported GLX extensions (see the output of
+  `kroki-glxoffload glxinfo`).
 * Thread-safe: no additional threads are created, rendering is done
   synchronously in the calling thread.
 * Slightly faster (higher FPS rate) than Primus (while also consuming
