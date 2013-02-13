@@ -96,3 +96,16 @@ benchmarking you may disable CPU frequency scaling with
         for f in echo /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
           echo performance > "$f";
         done'
+
+
+## Still frames and resize
+
+Kroki/glxoffload checks for window resize every 16 frames.  Resize is
+smooth when FPS rate is sufficiently high.  However when application
+shows a single frame for a prolonged time (for instance [FlightGear
+Flight Simulator] (http://www.flightgear.org/) shows a still
+introduction image frame during startup for several seconds) enlarging
+a window during that time will result in a resized image still being
+showed through an original small viewport.  Viewport geometry will be
+updated on the next 16th frame.  This can be fixed but probably not
+worth it as kroki/glxoffload targets high FPS rate applications.
