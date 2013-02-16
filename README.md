@@ -31,7 +31,8 @@ independent code base with a number of improvements:
 
 ## Installation
 
-Assuming Bumblebee is already [installed and operational]
+Assuming Bumblebee and a proprietary discrete video card driver are
+already [installed and operational]
 (http://duxyng.wordpress.com/2012/01/26/finally-working-nvidia-optimus-on-fedora/)
 the following packages have to be installed:
 
@@ -137,3 +138,18 @@ a window during that time will result in a resized image still being
 showed through an original small viewport.  Viewport geometry will be
 updated on the next 16th frame.  This can be fixed but probably not
 worth it as kroki/glxoffload targets high FPS rate applications.
+
+
+## Why Mesa drivers (like Nouveau) do not work for discrete card?
+
+To render frames on discrete video card and display them on integrated
+video card kroki/glxoffload simultaneously uses two "current" GLX
+contexts in a single thread, one for each card.  This is only possible
+when each card is driven by its own libGL because "current" GLX
+context is a singleton rooted in this library (thus with
+kroki/glxoffload GLX context for integrated card comes from Mesa libGL
+and GLX context for discrete card comes from proprietary libGL).  All
+Mesa drivers use the same libGL, so you can't have more than one
+"current" GLX context per thread for Mesa drivers.  Perhaps it's
+possible to play some dirty rename trick and load Mesa libGL twice,
+but that's not supported out of the box.
