@@ -116,11 +116,9 @@ read -u ${BB[0]} -d $'\0' LPATH
 LPATH=${LPATH/#Value: /}
 
 
-EXE=$(which "$1")
-
 findlib() {
     local LIBGL_RE=$(echo "$1" | sed -e 's/.*\///; s/\./\\./g')
-    LD_PRELOAD="$1" ldd "$EXE" \
+    LD_PRELOAD="$1" ldd /bin/true \
         | sed -ne 's/^\s*'"$LIBGL_RE"' => \(.\+\) (0x[[:xdigit:]]\+)$/\1/p;
                    s/^\s*\(.*\/'"$LIBGL_RE"'\) (0x[[:xdigit:]]\+)$/\1/p'
 }
