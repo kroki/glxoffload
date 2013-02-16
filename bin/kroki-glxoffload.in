@@ -40,6 +40,8 @@ usage() {
     echo "  -c, --copy-method METH  Copy method (one of AUTO, RGB, BGRA)"
     echo "  -a, --audit             Report unhandled GLX calls (can affect FPS)"
     echo "  -d, --verbose           Verbose output"
+    echo "      --accl-libgl FILE   File name of accelerated libGL"
+    echo "      --dspl-libgl FILE   File name of display libGL"
     echo "  -h, --help              Print this message and exit"
     echo "  -v, --version           Print version and exit"
 }
@@ -52,7 +54,8 @@ version() {
 
 
 eval set -- $(getopt -o +b:c:adhv \
-    -l bb-sock:,copy-method:,audit,verbose,help,version -- "$@")
+    -l bb-sock:,copy-method:,audit,verbose,help,version \
+    -l accl-libgl:,dspl-libgl: -- "$@")
 while [ $# -ge 1 ]; do
     case "$1" in
         -b|--bb-sock)
@@ -77,6 +80,14 @@ while [ $# -ge 1 ]; do
             ;;
         -d|--verbose)
             VERBOSE=1
+            ;;
+        --accl-libgl)
+            shift
+            ACCL_LIBGL=$1
+            ;;
+        --dspl-libgl)
+            shift
+            DSPL_LIBGL=$1
             ;;
         -h|--help)
             usage
@@ -124,8 +135,8 @@ findlib() {
 }
 
 
-DSPL_LIBGL=$(findlib "$LIBGL")
-ACCL_LIBGL=$(LD_LIBRARY_PATH="$LPATH" findlib "$LIBGL")
+DSPL_LIBGL=${DSPL_LIBGL:-$(findlib "$LIBGL")}
+ACCL_LIBGL=${ACCL_LIBGL:-$(LD_LIBRARY_PATH="$LPATH" findlib "$LIBGL")}
 
 
 # The code below avoids security hole provided that the user doesn't
