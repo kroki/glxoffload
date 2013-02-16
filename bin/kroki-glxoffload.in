@@ -53,7 +53,7 @@ version() {
 }
 
 
-OPTIONS=$(getopt -o +b:c:adhv \
+OPTIONS=$(getopt -n "$SCRIPT" -o +b:c:adhv \
     -l bb-sock:,copy-method:,audit,verbose,help,version \
     -l accl-libgl:,dspl-libgl: -- "$@")
 eval set -- $OPTIONS
