@@ -153,3 +153,17 @@ Mesa drivers use the same libGL, so you can't have more than one
 "current" GLX context per thread for Mesa drivers.  Perhaps it's
 possible to play some dirty rename trick and load Mesa libGL twice,
 but that's not supported out of the box.
+
+
+## Reporting bugs
+
+Report bugs at https://github.com/kroki/glxoffload/issues or via email
+if you are not registered on GitHub.
+
+When reporting a bug please include the output of the following commands:
+
+    $ kroki-glxoffload glxinfo | grep string
+    $ kroki-glxoffload --verbose PROGRAM
+
+where `PROGRAM` is an OpenGL application you are trying to start under
+kroki/glxoffload.
