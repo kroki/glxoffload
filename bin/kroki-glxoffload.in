@@ -53,9 +53,10 @@ version() {
 }
 
 
-eval set -- $(getopt -o +b:c:adhv \
+OPTIONS=$(getopt -o +b:c:adhv \
     -l bb-sock:,copy-method:,audit,verbose,help,version \
     -l accl-libgl:,dspl-libgl: -- "$@")
+eval set -- $OPTIONS
 while [ $# -ge 1 ]; do
     case "$1" in
         -b|--bb-sock)
