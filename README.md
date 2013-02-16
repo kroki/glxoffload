@@ -80,6 +80,21 @@ you may not be able to install the first two packages unless you use
 (requires `socat` utility and a running `bumblebeed` instance).
 
 
+### Library search paths
+
+If `kroki-glxoffload` fails with the error message
+
+    error while loading shared libraries: libcuckoo_hash.so.0:
+      cannot open shared object file: No such file or directory
+
+then the path you have install `libcuckoo_hash` is not among library
+search paths.  To fix this find out where `libcuckoo_hash` is
+installed (likely `/usr/local/lib`) and do under root:
+
+    # echo /usr/local/lib > /etc/ld.so.conf.d/local.conf
+    # ldconfig
+
+
 ## Selecting pixel copy method
 
 Prior to version 0.7 kroki/glxoffload copied pixel buffers in RGB
