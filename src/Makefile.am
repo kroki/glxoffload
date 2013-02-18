@@ -21,6 +21,7 @@ nobase_pkglib_LTLIBRARIES =			\
 
 
 libGL_la_LDFLAGS =				\
+	-Wl,--enable-new-dtags			\
 	-version-info 1
 
 
