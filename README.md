@@ -88,7 +88,7 @@ If `kroki-glxoffload` fails with the error message
     error while loading shared libraries: libcuckoo_hash.so.0:
       cannot open shared object file: No such file or directory
 
-then the path you have install `libcuckoo_hash` is not among library
+then the path you have installed `libcuckoo_hash` is not among library
 search paths.  To fix this find out where `libcuckoo_hash` is
 installed (likely `/usr/local/lib`) and do under root:
 
