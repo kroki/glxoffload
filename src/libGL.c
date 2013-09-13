@@ -733,10 +733,6 @@ glXCreateContext, Display *, dpy, XVisualInfo *, vis,
 }
 
 
-ACCL_DPY(Bool,
-glXQueryVersion, Display *, dpy, int *, major, int *, minor);
-
-
 REDEF(GLXContext,
 glXCreateContextAttribsARB, Display *, dpy, GLXFBConfig, config,
       GLXContext, share_list, Bool, direct, const int *, attrib_list)
@@ -746,39 +742,6 @@ glXCreateContextAttribsARB, Display *, dpy, GLXFBConfig, config,
                         share_list, direct, attrib_list);
   if (res)
     {
-      int attrib_major = 0, attrib_minor = 0;
-      int attrib_count = 0;
-      if (attrib_list && *attrib_list)
-        {
-          for (const int *it = attrib_list; *it; it += 2)
-            {
-              ++attrib_count;
-              if (it[0] == GLX_CONTEXT_MAJOR_VERSION_ARB)
-                attrib_major = it[1];
-              else if (it[0] == GLX_CONTEXT_MINOR_VERSION_ARB)
-                attrib_minor = it[1];
-            }
-        }
-      int attrib[attrib_count * 2 + 1];
-      if (attrib_list && *attrib_list)
-        {
-          int dspl_major, dspl_minor;
-          CHECK(DSPL(glXQueryVersion, dpy, &dspl_major, &dspl_minor),
-                != True, die, "falied");
-          if (attrib_major > dspl_major
-              || (attrib_major == dspl_major && attrib_minor > dspl_minor))
-            {
-              memcpy(attrib, attrib_list, sizeof(int) * (attrib_count * 2 + 1));
-              for (int *it = attrib; *it; it += 2)
-                {
-                  if (it[0] == GLX_CONTEXT_MAJOR_VERSION_ARB)
-                    it[1] = dspl_major;
-                  else if (it[0] == GLX_CONTEXT_MINOR_VERSION_ARB)
-                    it[1] = dspl_minor;
-                }
-              attrib_list = attrib;
-            }
-        }
       GLXFBConfig dspl_config = get_dspl_config(dpy, config);
       GLXContext dspl_ctx = MEM(DSPL(glXCreateContextAttribsARB, dpy,
                                      dspl_config, NULL, True, attrib_list));
@@ -1477,6 +1440,10 @@ glXCopyContext, Display *, dpy, GLXContext, src, GLXContext, dst,
 
 ACCL_DPY(Bool,
 glXQueryExtension, Display *, dpy, int *, errorBase, int *, eventBase);
+
+
+ACCL_DPY(Bool,
+glXQueryVersion, Display *, dpy, int *, major, int *, minor);
 
 
 ACCL_DPY(int,
