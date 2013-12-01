@@ -894,9 +894,9 @@ glXSwapBuffers, Display *, dpy, GLXDrawable, draw)
 
       glGenBuffers(2, di->accl_copy_pbuffers);
       glBindBuffer(GL_PIXEL_PACK_BUFFER, di->accl_copy_pbuffers[0]);
-      glBufferData(GL_PIXEL_PACK_BUFFER, size, NULL, GL_STREAM_COPY);
+      glBufferData(GL_PIXEL_PACK_BUFFER, size, NULL, GL_STREAM_READ);
       glBindBuffer(GL_PIXEL_PACK_BUFFER, di->accl_copy_pbuffers[1]);
-      glBufferData(GL_PIXEL_PACK_BUFFER, size, NULL, GL_STREAM_COPY);
+      glBufferData(GL_PIXEL_PACK_BUFFER, size, NULL, GL_STREAM_READ);
 
       DSPL(glDisable, GL_DEPTH_TEST);
       DSPL(glDepthMask, GL_FALSE);
