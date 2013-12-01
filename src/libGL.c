@@ -837,7 +837,7 @@ process_frame(struct drw_info *di, bool read_rgb, bool draw_rgb)
        draw_rgb ? GL_UNSIGNED_BYTE : GL_UNSIGNED_INT_8_8_8_8_REV, data);
   glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
 
-  DSPL(glDrawArrays, GL_TRIANGLES, 0, 6);
+  DSPL(glDrawArrays, GL_TRIANGLE_STRIP, 0, 4);
 }
 
 
@@ -909,14 +909,8 @@ glXSwapBuffers, Display *, dpy, GLXDrawable, draw)
       DSPL(glTexParameteri, GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
       DSPL(glTexParameteri, GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-      static const GLfloat vrect[] = {
-        -1, -1,     1, -1,    -1,  1,
-         1,  1,    -1,  1,     1, -1
-      };
-      static const GLfloat trect[] = {
-         0,  0,     1,  0,     0,  1,
-         1,  1,     0,  1,     1,  0
-      };
+      static const GLfloat vrect[] = {-1, -1,   1, -1,   -1,  1,   1,  1};
+      static const GLfloat trect[] = { 0,  0,   1,  0,    0,  1,   1,  1};
       DSPL(glVertexPointer, 2, GL_FLOAT, 0, vrect);
       DSPL(glTexCoordPointer, 2, GL_FLOAT, 0, trect);
       DSPL(glEnableClientState, GL_VERTEX_ARRAY);
