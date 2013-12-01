@@ -766,13 +766,6 @@ glXDestroyContext, Display *, dpy, GLXContext, ctx)
 }
 
 
-REDEF(GLXContext,
-glXGetCurrentContext, void)
-{
-  return ACCL(glXGetCurrentContext);
-}
-
-
 REDEF(Display *,
 glXGetCurrentDisplay, void)
 {
