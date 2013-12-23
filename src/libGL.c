@@ -490,7 +490,10 @@ get_dspl_config(Display *dpy, GLXFBConfig config)
   GLXFBConfig *dspl_configs =
     MEM(DSPL(glXChooseFBConfig, dpy, DefaultScreen(dpy),
              attrib_list, &nelements));
-  return dspl_configs[0];
+  GLXFBConfig fbconfig = dspl_configs[0];
+  XFree(dspl_configs);
+
+  return fbconfig;
 }
 
 
@@ -528,7 +531,10 @@ get_accl_config(Display *dpy, XVisualInfo *vis)
   GLXFBConfig *configs =
     MEM(ACCL(glXChooseFBConfig, accl_dpy, DefaultScreen(accl_dpy),
              attrib_list, &nelements));
-  return configs[0];
+  GLXFBConfig fbconfig = configs[0];
+  XFree(configs);
+
+  return fbconfig;
 }
 
 
