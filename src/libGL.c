@@ -546,9 +546,6 @@ glXGetVisualFromFBConfig, Display *, dpy, GLXFBConfig, config)
 }
 
 
-IMPORT(XGetGeometry);
-
-
 static
 void
 get_dimensions(Display *dpy, GLXDrawable draw,
@@ -557,8 +554,8 @@ get_dimensions(Display *dpy, GLXDrawable draw,
   Window root;
   int x, y;
   unsigned int width, height, border_width, depth;
-  DSPL(XGetGeometry, dpy, draw, &root, &x, &y,
-       &width, &height, &border_width, &depth);
+  XGetGeometry(dpy, draw, &root, &x, &y,
+               &width, &height, &border_width, &depth);
   *pwidth = width;
   *pheight = height;
 }
