@@ -444,9 +444,30 @@ get_client_string(char **pv, int name, const char *via)
 }
 
 
-ACCL_DPY(int,
+static
+GLXFBConfig
+get_dspl_config(Display *dpy, GLXFBConfig config);
+
+
+REDEF(int,
 glXGetFBConfigAttrib, Display *, dpy, GLXFBConfig, config,
-      int, attribute, int *, value);
+      int, attribute, int *, value)
+{
+  switch (attribute)
+    {
+    case GLX_VISUAL_ID:
+    case GLX_X_VISUAL_TYPE:
+      {
+        GLXFBConfig dspl_config = get_dspl_config(dpy, config);
+        return DSPL(glXGetFBConfigAttrib, dpy, dspl_config, attribute, value);
+      }
+
+    default:
+      {
+        return ACCL(glXGetFBConfigAttrib, accl_dpy, config, attribute, value);
+      }
+    }
+}
 
 
 REDEF(GLXFBConfig *,
