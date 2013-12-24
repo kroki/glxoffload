@@ -177,6 +177,7 @@ struct drw_info
   GLXFBConfig accl_config;
   GLXPbuffer accl_pbuffer;
 
+  Drawable xdrw;
   GLsizei width;
   GLsizei height;
   GLuint accl_copy_pbuffers[2];
@@ -248,7 +249,8 @@ static struct cuckoo_hash drw_infos;
 
 static
 struct drw_info *
-drw_info_create(Display *dpy, GLXDrawable drw, GLXFBConfig config)
+drw_info_create(Display *dpy, GLXDrawable drw, GLXFBConfig config,
+                Drawable xdrw)
 {
   struct drw_info *res = MEM(malloc(sizeof(*res)));
   memset(&res->key, 0, sizeof(res->key));
@@ -265,6 +267,7 @@ drw_info_create(Display *dpy, GLXDrawable drw, GLXFBConfig config)
   res->copy_nsec = 0;
   res->copy_confidence_mask = 0;
   res->copy_rgb = (copy_method == RGB);
+  res->xdrw = xdrw;
   pthread_mutex_lock(&drw_infos_mutex);
   CHECK(cuckoo_hash_insert(&drw_infos, &res->key, sizeof(res->key), res),
         != NULL, die, "%m");
@@ -569,13 +572,13 @@ glXGetVisualFromFBConfig, Display *, dpy, GLXFBConfig, config)
 
 static
 void
-get_dimensions(Display *dpy, GLXDrawable draw,
+get_dimensions(Display *dpy, Drawable xdrw,
                GLsizei *pwidth, GLsizei *pheight)
 {
   Window root;
   int x, y;
   unsigned int width, height, border_width, depth;
-  XGetGeometry(dpy, draw, &root, &x, &y,
+  XGetGeometry(dpy, xdrw, &root, &x, &y,
                &width, &height, &border_width, &depth);
   *pwidth = width;
   *pheight = height;
@@ -589,7 +592,16 @@ glXCreatePbuffer, Display *, dpy, GLXFBConfig, config,
   GLXFBConfig dspl_config = get_dspl_config(dpy, config);
   GLXPbuffer res = DSPL(glXCreatePbuffer, dpy, dspl_config, attrib_list);
   if (res)
-    drw_info_create(dpy, res, config);
+    {
+      struct drw_info *di = drw_info_create(dpy, res, config, None);
+      for (const int *it = attrib_list; *it != None; it += 2)
+        {
+          if (it[0] == GLX_PBUFFER_WIDTH)
+            di->width = it[1];
+          else if (it[0] == GLX_PBUFFER_HEIGHT)
+            di->height = it[1];
+        }
+    }
   return res;
 }
 
@@ -606,11 +618,12 @@ lookup_with_pbuffer(Display *dpy, GLXDrawable draw, struct ctx_info *ci)
         GLXWindow (plain Window or Pixmap) so we didn't intercept its
         creation and haven't assign drw_info to it.
       */
-      di = drw_info_create(dpy, draw, ci->accl_config);
+      di = drw_info_create(dpy, draw, ci->accl_config, draw);
     }
   if (! di->accl_pbuffer)
     {
-      get_dimensions(dpy, draw, &di->width, &di->height);
+      if (di->xdrw)
+        get_dimensions(dpy, di->xdrw, &di->width, &di->height);
       int attrib_list[] = {
         GLX_PBUFFER_WIDTH, di->width,
         GLX_PBUFFER_HEIGHT, di->height,
@@ -871,9 +884,10 @@ glXSwapBuffers, Display *, dpy, GLXDrawable, draw)
   GLint save_pixel_pack_buffer;
   glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &save_pixel_pack_buffer);
 
-  GLsizei width, height;
-  if (di->frame_no % COPY_CONFIDENCE_MASK_DIVIDER == 0)
-    get_dimensions(dpy, draw, &width, &height);
+  GLsizei width = di->width;
+  GLsizei height = di->height;
+  if (di->xdrw && di->frame_no % COPY_CONFIDENCE_MASK_DIVIDER == 0)
+    get_dimensions(dpy, di->xdrw, &width, &height);
   if (di->frame_no % COPY_CONFIDENCE_MASK_DIVIDER == 0
       && unlikely(di->width != width || di->height != height))
     {
@@ -1384,7 +1398,7 @@ glXCreateGLXPixmap, Display *, dpy, XVisualInfo *, vis,
 {
   GLXPixmap res = DSPL(glXCreateGLXPixmap, dpy, vis, pixmap);
   if (res)
-    drw_info_create(dpy, res, get_accl_config(dpy, vis));
+    drw_info_create(dpy, res, get_accl_config(dpy, vis), pixmap);
   return res;
 }
 
@@ -1404,7 +1418,7 @@ glXCreatePixmap, Display *, dpy, GLXFBConfig, config,
   GLXFBConfig dspl_config = get_dspl_config(dpy, config);
   GLXPixmap res = DSPL(glXCreatePixmap, dpy, dspl_config, pixmap, attrib_list);
   if (res)
-    drw_info_create(dpy, res, config);
+    drw_info_create(dpy, res, config, pixmap);
   return res;
 }
 
@@ -1424,7 +1438,7 @@ glXCreateWindow, Display *, dpy, GLXFBConfig, config,
   GLXFBConfig dspl_config = get_dspl_config(dpy, config);
   GLXWindow res = DSPL(glXCreateWindow, dpy, dspl_config, win, attrib_list);
   if (res)
-    drw_info_create(dpy, res, config);
+    drw_info_create(dpy, res, config, win);
   return res;
 }
 
