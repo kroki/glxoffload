@@ -490,6 +490,13 @@ get_dspl_config(Display *dpy, GLXFBConfig config)
   int attrib_list[] = {
     GLX_DOUBLEBUFFER, True,
     GLX_RENDER_TYPE, GLX_RGBA_BIT,
+    GLX_ACCUM_RED_SIZE, 0,
+    GLX_ACCUM_GREEN_SIZE, 0,
+    GLX_ACCUM_BLUE_SIZE, 0,
+    GLX_ACCUM_ALPHA_SIZE, 0,
+    GLX_AUX_BUFFERS, 0,
+    GLX_DEPTH_SIZE, 0,
+    GLX_STENCIL_SIZE, 0,
 
     GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
     GLX_X_RENDERABLE, GLX_DONT_CARE,
@@ -497,14 +504,12 @@ get_dspl_config(Display *dpy, GLXFBConfig config)
     GLX_GREEN_SIZE, 0,
     GLX_BLUE_SIZE, 0,
     GLX_ALPHA_SIZE, 0,
-    GLX_DEPTH_SIZE, 0,
-    GLX_STENCIL_SIZE, 0,
     GLX_LEVEL, 0,
     GLX_STEREO, False,
     None
   };
 
-  for (int i = 2 * 2; attrib_list[i] != None; i += 2)
+  for (int i = 9 * 2; attrib_list[i] != None; i += 2)
     {
       int err;
       CHECK(err = ACCL(glXGetFBConfigAttrib, accl_dpy, config,
@@ -542,6 +547,11 @@ get_accl_config(Display *dpy, XVisualInfo *vis)
     GLX_ALPHA_SIZE, 0,
     GLX_DEPTH_SIZE, 0,
     GLX_STENCIL_SIZE, 0,
+    GLX_AUX_BUFFERS, 0,
+    GLX_ACCUM_RED_SIZE, 0,
+    GLX_ACCUM_GREEN_SIZE, 0,
+    GLX_ACCUM_BLUE_SIZE, 0,
+    GLX_ACCUM_ALPHA_SIZE, 0,
     GLX_LEVEL, 0,
     GLX_STEREO, False,
     None
