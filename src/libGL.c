@@ -615,18 +615,43 @@ REDEF(GLXPbuffer,
 glXCreatePbuffer, Display *, dpy, GLXFBConfig, config,
       const int *, attrib_list)
 {
+  /*
+    Pbuffer on DSPL side is never used so we remember requested
+    dimensions but create a Pbuffer of 1x1 size.
+  */
+  int i = 0;
+  int wi = -1;
+  int hi = -1;
+  if (attrib_list)
+    {
+      for (; attrib_list[i] != None; i += 2)
+        {
+          if (attrib_list[i] == GLX_PBUFFER_WIDTH)
+            wi = i + 1;
+          else if (attrib_list[i] == GLX_PBUFFER_HEIGHT)
+            hi = i + 1;
+        }
+    }
+  int al[i + 1];
+  if (attrib_list)
+    {
+      memcpy(al, attrib_list, sizeof(int) * i);
+      if (wi != -1)
+        al[wi] = 1;
+      if (hi != -1)
+        al[hi] = 1;
+    }
+  al[i] = None;
+
   GLXFBConfig dspl_config = get_dspl_config(dpy, config);
-  GLXPbuffer res = DSPL(glXCreatePbuffer, dpy, dspl_config, attrib_list);
+  GLXPbuffer res = DSPL(glXCreatePbuffer, dpy, dspl_config, al);
   if (res)
     {
       struct drw_info *di = drw_info_create(dpy, res, config, None);
-      for (const int *it = attrib_list; *it != None; it += 2)
-        {
-          if (it[0] == GLX_PBUFFER_WIDTH)
-            di->width = it[1];
-          else if (it[0] == GLX_PBUFFER_HEIGHT)
-            di->height = it[1];
-        }
+      if (wi != -1)
+        di->width = attrib_list[wi];
+      if (hi != -1)
+        di->height = attrib_list[hi];
     }
   return res;
 }
@@ -904,15 +929,22 @@ glXSwapBuffers, Display *, dpy, GLXDrawable, draw)
 
   ACCL(glXSwapBuffers, accl_dpy, di->accl_pbuffer);
 
+  /*
+    If 'draw' is a (double buffered) Pbuffer then we have nothing to
+    do because there's no point in updating Pbuffer on DSPL side.
+  */
+  if (!di->xdrw)
+    return;
+
   GLenum accl_err = glGetError();
   GLenum dspl_err = DSPL(glGetError);
 
   GLint save_pixel_pack_buffer;
   glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &save_pixel_pack_buffer);
 
-  GLsizei width = di->width;
-  GLsizei height = di->height;
-  if (di->xdrw && di->frame_no % COPY_CONFIDENCE_MASK_DIVIDER == 0)
+  GLsizei width;
+  GLsizei height;
+  if (di->frame_no % COPY_CONFIDENCE_MASK_DIVIDER == 0)
     get_dimensions(dpy, di->xdrw, &width, &height);
   if (di->frame_no % COPY_CONFIDENCE_MASK_DIVIDER == 0
       && unlikely(di->width != width || di->height != height))
