@@ -501,7 +501,6 @@ get_dspl_config(Display *dpy, GLXFBConfig config)
     GLX_SAMPLES, 0,
 
     GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
-    GLX_X_RENDERABLE, GLX_DONT_CARE,
     GLX_RED_SIZE, 0,
     GLX_GREEN_SIZE, 0,
     GLX_BLUE_SIZE, 0,
@@ -517,6 +516,15 @@ get_dspl_config(Display *dpy, GLXFBConfig config)
       CHECK(err = ACCL(glXGetFBConfigAttrib, accl_dpy, config,
                        attrib_list[i], &attrib_list[i + 1]),
             != 0, die, "failed with error 0x%x", err);
+    }
+
+  if (attrib_list[23] == GLX_PBUFFER_BIT)
+    {
+      for (int i = 0; i < 8; i += 2)
+        {
+          if (attrib_list[25 + i] > 8)
+            attrib_list[25 + i] = 8;
+        }
     }
 
   int nelements;
