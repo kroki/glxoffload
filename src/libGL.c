@@ -825,10 +825,9 @@ REDEF(GLXContext,
 glXCreateContextAttribsARB, Display *, dpy, GLXFBConfig, config,
       GLXContext, share_list, Bool, direct, const int *, attrib_list)
 {
-  // Color index rendering is obsolete so let's pass attrib_list as-is.
   GLXFBConfig dspl_config = get_dspl_config(dpy, config);
   GLXContext dspl_ctx = DSPL(glXCreateContextAttribsARB, dpy,
-                             dspl_config, NULL, True, attrib_list);
+                             dspl_config, NULL, True, NULL);
   if (! dspl_ctx)
     return NULL;
   if (DSPL(glXIsDirect, dpy, dspl_ctx) != True)
