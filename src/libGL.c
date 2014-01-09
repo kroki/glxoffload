@@ -826,16 +826,16 @@ glXCreateContextAttribsARB, Display *, dpy, GLXFBConfig, config,
       GLXContext, share_list, Bool, direct, const int *, attrib_list)
 {
   GLXFBConfig dspl_config = get_dspl_config(dpy, config);
-  GLXContext dspl_ctx = DSPL(glXCreateContextAttribsARB, dpy,
-                             dspl_config, NULL, True, NULL);
-  if (! dspl_ctx)
-    return NULL;
-  if (DSPL(glXIsDirect, dpy, dspl_ctx) != True)
-    error("connection to %s is not direct", getenv("DISPLAY"));
-  GLXContext res = MEM(ACCL(glXCreateContextAttribsARB, accl_dpy, config,
-                            share_list, direct, attrib_list));
-  ctx_info_create(res, config, dspl_ctx);
-
+  GLXContext res = ACCL(glXCreateContextAttribsARB, accl_dpy, config,
+                        share_list, direct, attrib_list);
+  if (res)
+    {
+      GLXContext dspl_ctx = MEM(DSPL(glXCreateContextAttribsARB, dpy,
+                                     dspl_config, NULL, True, NULL));
+      if (DSPL(glXIsDirect, dpy, dspl_ctx) != True)
+        error("connection to %s is not direct", getenv("DISPLAY"));
+      ctx_info_create(res, config, dspl_ctx);
+    }
   return res;
 }
 
