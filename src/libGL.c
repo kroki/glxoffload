@@ -225,8 +225,9 @@ ctx_info_lookup(GLXContext accl_ctx)
   pthread_mutex_lock(&ctx_infos_mutex);
   struct cuckoo_hash_item *it =
     cuckoo_hash_lookup(&ctx_infos, &accl_ctx, sizeof(accl_ctx));
+  void *value = (it ? it->value : NULL);
   pthread_mutex_unlock(&ctx_infos_mutex);
-  return (it ? it->value : NULL);
+  return value;
 }
 
 
@@ -238,8 +239,9 @@ ctx_info_destroy(GLXContext accl_ctx)
   struct cuckoo_hash_item *it =
     cuckoo_hash_lookup(&ctx_infos, &accl_ctx, sizeof(accl_ctx));
   cuckoo_hash_remove(&ctx_infos, it);
+  void *value = it->value;
   pthread_mutex_unlock(&ctx_infos_mutex);
-  free(it->value);
+  free(value);
 }
 
 
@@ -287,8 +289,9 @@ drw_info_lookup(Display *dpy, GLXDrawable drw)
   pthread_mutex_lock(&drw_infos_mutex);
   struct cuckoo_hash_item *it =
     cuckoo_hash_lookup(&drw_infos, &key, sizeof(key));
+  void *value = (it ? it->value : NULL);
   pthread_mutex_unlock(&drw_infos_mutex);
-  return (it ? it->value : NULL);
+  return value;
 }
 
 
@@ -320,10 +323,11 @@ drw_info_destroy(Display *dpy, GLXDrawable drw)
   struct cuckoo_hash_item *it =
     cuckoo_hash_lookup(&drw_infos, &key, sizeof(key));
   cuckoo_hash_remove(&drw_infos, it);
+  void *value = (it ? it->value : NULL);
   pthread_mutex_unlock(&drw_infos_mutex);
-  if (it)
+  if (value)
     {
-      struct drw_info *di = it->value;
+      struct drw_info *di = value;
       if (di->accl_pbuffer)
         ACCL(glXDestroyPbuffer, accl_dpy, di->accl_pbuffer);
       if (di->dspl_texture)
@@ -1681,8 +1685,9 @@ fnt_info_lookup(Display *dpy, Font dspl_font)
   pthread_mutex_lock(&fnt_infos_mutex);
   struct cuckoo_hash_item *it =
     cuckoo_hash_lookup(&fnt_infos, &key, sizeof(key));
+  void *value = (it ? it->value : NULL);
   pthread_mutex_unlock(&fnt_infos_mutex);
-  return (it ? it->value : NULL);
+  return value;
 }
 
 
@@ -1726,10 +1731,11 @@ fnt_info_destroy(Display *dpy, Font dspl_font)
       else
         it = NULL;
     }
+  void *value = (it ? it->value : NULL);
   pthread_mutex_unlock(&fnt_infos_mutex);
-  if (it)
+  if (value)
     {
-      struct fnt_info *fi = it->value;
+      struct fnt_info *fi = value;
       if (fi->accl_font)
         ACCL(XUnloadFont, accl_dpy, fi->accl_font);
       free(fi);
